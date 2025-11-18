@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Teste - Moniton</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 50px auto;
+        padding: 20px;
+        background: #f5f5f5;
+      }
+      .test-card {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #667eea;
+      }
+      .status {
+        padding: 10px;
+        border-radius: 6px;
+        margin: 10px 0;
+      }
+      .success {
+        background: #e8f5e9;
+        color: #388e3c;
+      }
+      .error {
+        background: #ffebee;
+        color: #c62828;
+      }
+      .info {
+        background: #e3f2fd;
+        color: #1976d2;
+      }
+      button {
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 16px;
+        margin: 5px;
+      }
+      button:hover {
+        background: #5568d3;
+      }
+      pre {
+        background: #f5f5f5;
+        padding: 15px;
+        border-radius: 6px;
+        overflow-x: auto;
+      }
+      .test-result {
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🧪 Teste do Sistema Moniton</h1>
+
+    <div class="test-card">
+      <h2>1. Verificação de Arquivos</h2>
+      <div id="fileCheck"></div>
+    </div>
+
+    <div class="test-card">
+      <h2>2. Teste de Conexão com n8n</h2>
+      <button onclick="testWebhook()">🔌 Testar Conexão</button>
+      <div id="webhookTest" class="test-result"></div>
+    </div>
+
+    <div class="test-card">
+      <h2>3. Teste de LocalStorage</h2>
+      <button onclick="testStorage()">💾 Testar Storage</button>
+      <div id="storageTest" class="test-result"></div>
+    </div>
+
+    <div class="test-card">
+      <h2>4. Teste de Geração de Questão</h2>
+      <button onclick="testGeneration()">✨ Gerar Questão Teste</button>
+      <div id="generationTest" class="test-result"></div>
+    </div>
+
+    <script>
+      // Configuração
+      const WEBHOOK_URL = "http://localhost:5678/webhook/moniton-webhook";
+
+      // Verificar arquivos
+      window.addEventListener("DOMContentLoaded", function () {
+        const fileCheck = document.getElementById("fileCheck");
+        const files = [
+          { name: "CONFIG", obj: window.CONFIG },
+          { name: "Storage", obj: window.Storage },
+          { name: "Generator", obj: window.Generator },
+          { name: "QUESTION_TYPES", obj: window.QUESTION_TYPES },
+        ];
+
+        let html = "";
+        files.forEach((file) => {
+          const exists = typeof file.obj !== "undefined";
+          html += `<div class="status ${exists ? "success" : "error"}">
+                    ${exists ? "✅" : "❌"} ${file.name}
+                </div>`;
+        });
+
+        fileCheck.innerHTML = html;
+      });
+
+      // Testar webhook
+      async function testWebhook() {
+        const resultDiv = document.getElementById("webhookTest");
+        resultDiv.innerHTML =
+          '<div class="status info">⏳ Testando conexão...</div>';
+
+        try {
+          const response = await fetch(WEBHOOK_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              mensagem: "Teste de conexão",
+              tipo: "multipla_escolha",
+              serie: "auto",
+              dificuldade: "fácil",
+            }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            resultDiv.innerHTML = `
+                        <div class="status success">✅ Conexão OK!</div>
+                        <pre>${JSON.stringify(data, null, 2).substring(
+                          0,
+                          500
+                        )}...</pre>
+                    `;
+          } else {
+            resultDiv.innerHTML = `
+                        <div class="status error">❌ Erro HTTP ${response.status}</div>
+                        <p>Verifique se o n8n está rodando em ${WEBHOOK_URL}</p>
+                    `;
+          }
+        } catch (error) {
+          resultDiv.innerHTML = `
+                    <div class="status error">❌ Erro de conexão</div>
+                    <p>${error.message}</p>
+                    <p>Verifique se o n8n está rodando em ${WEBHOOK_URL}</p>
+                `;
+        }
+      }
+
+      // Testar localStorage
+      function testStorage() {
+        const resultDiv = document.getElementById("storageTest");
+
+        try {
+          // Testar escrita
+          const testData = {
+            id: "test_" + Date.now(),
+            enunciado: "Questão de teste",
+            tipo_questao: "multipla_escolha",
+          };
+
+          localStorage.setItem("moniton_test", JSON.stringify(testData));
+
+          // Testar leitura
+          const retrieved = JSON.parse(localStorage.getItem("moniton_test"));
+
+          if (retrieved.id === testData.id) {
+            resultDiv.innerHTML = `
+                        <div class="status success">✅ LocalStorage funcionando!</div>
+                        <pre>${JSON.stringify(retrieved, null, 2)}</pre>
+                    `;
+
+            // Limpar teste
+            localStorage.removeItem("moniton_test");
+          } else {
+            throw new Error("Dados não correspondem");
+          }
+        } catch (error) {
+          resultDiv.innerHTML = `
+                    <div class="status error">❌ Erro no LocalStorage</div>
+                    <p>${error.message}</p>
+                `;
+        }
+      }
+
+      // Testar geração
+      async function testGeneration() {
+        const resultDiv = document.getElementById("generationTest");
+        resultDiv.innerHTML =
+          '<div class="status info">⏳ Gerando questão...</div>';
+
+        try {
+          const params = {
+            mensagem: "Ciclo da água",
+            tipo: "multipla_escolha",
+            serie: "6º ano",
+            dificuldade: "fácil",
+          };
+
+          const response = await fetch(WEBHOOK_URL, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(params),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+
+          const rawText = await response.text();
+          if (!rawText) {
+            throw new Error("Resposta vazia");
+          }
+
+          const data = JSON.parse(rawText);
+
+          resultDiv.innerHTML = `
+                    <div class="status success">✅ Questão gerada com sucesso!</div>
+                    <h4>Enunciado:</h4>
+                    <p>${data.enunciado || "N/A"}</p>
+                    <h4>Disciplina:</h4>
+                    <p>${data.disciplina || "N/A"}</p>
+                    <h4>Tokens:</h4>
+                    <p>${data.tokens_usados || 0}</p>
+                    <h4>Custo:</h4>
+                    <p>$${(data.custo_estimado || 0).toFixed(6)}</p>
+                    <details>
+                        <summary>Ver JSON completo</summary>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </details>
+                `;
+        } catch (error) {
+          resultDiv.innerHTML = `
+                    <div class="status error">❌ Erro na geração</div>
+                    <p>${error.message}</p>
+                `;
+        }
+      }
+    </script>
+  </body>
+</html>

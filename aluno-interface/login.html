@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login - Aluno</title>
+    <link rel="stylesheet" href="css/aluno.css" />
+  </head>
+  <body class="login-page">
+    <noscript>Ative o JavaScript para usar o Moniton.</noscript>
+
+    <div class="login-container">
+      <div class="login-card">
+        <div class="login-header">
+          <h1>🎓 Moniton Aluno</h1>
+          <p>Acesse sua conta para responder questões</p>
+        </div>
+
+        <form id="loginForm" novalidate>
+          <div class="form-group">
+            <label for="matricula">Matrícula</label>
+            <input
+              type="text"
+              id="matricula"
+              placeholder="Digite sua matrícula"
+              required
+              autocomplete="username"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="senha">Senha</label>
+            <input
+              type="password"
+              id="senha"
+              placeholder="Digite sua senha"
+              required
+              autocomplete="current-password"
+            />
+          </div>
+
+          <button type="submit" class="btn-login">Entrar</button>
+        </form>
+
+        <div class="error" id="error"></div>
+      </div>
+    </div>
+
+    <!-- Ordem garantida: config -> Supabase CDN -> auth -->
+    <script src="js/config.js" defer></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+      defer
+    ></script>
+    <script src="js/auth.js" defer></script>
+  </body>
+</html>

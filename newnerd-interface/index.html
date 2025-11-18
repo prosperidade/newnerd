@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>NEW NERD - Gerador de Questões</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <h3>📚 Histórico</h3>
+          <button class="btn-icon" onclick="toggleSidebar()" title="Fechar">
+            ×
+          </button>
+        </div>
+
+        <div class="dashboard">
+          <h3>📊 Estatísticas</h3>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-value" id="statTotal">0</div>
+              <div class="stat-label">Questões</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="statCusto">$0.00</div>
+              <div class="stat-label">Custo Total</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="statTokens">0</div>
+              <div class="stat-label">Tokens</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="statMedia">$0.00</div>
+              <div class="stat-label">Custo Médio</div>
+            </div>
+          </div>
+
+          <div class="chart-container">
+            <div class="chart-bar">
+              <div class="chart-label">Múltipla</div>
+              <div class="chart-progress">
+                <div class="chart-fill" id="chartMC" style="width: 0%"></div>
+                <div class="chart-count" id="countMC">0</div>
+              </div>
+            </div>
+            <div class="chart-bar">
+              <div class="chart-label">Discursiva</div>
+              <div class="chart-progress">
+                <div class="chart-fill" id="chartDisc" style="width: 0%"></div>
+                <div class="chart-count" id="countDisc">0</div>
+              </div>
+            </div>
+            <div class="chart-bar">
+              <div class="chart-label">V ou F</div>
+              <div class="chart-progress">
+                <div class="chart-fill" id="chartVF" style="width: 0%"></div>
+                <div class="chart-count" id="countVF">0</div>
+              </div>
+            </div>
+            <div class="chart-bar">
+              <div class="chart-label">Associação</div>
+              <div class="chart-progress">
+                <div class="chart-fill" id="chartAssoc" style="width: 0%"></div>
+                <div class="chart-count" id="countAssoc">0</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar-filters">
+          <div class="filter-group">
+            <label for="filterTipo">Tipo de Questão</label>
+            <select id="filterTipo" onchange="applyFilters()">
+              <option value="">Todos</option>
+              <option value="multipla_escolha">Múltipla Escolha</option>
+              <option value="discursiva">Discursiva</option>
+              <option value="verdadeiro_falso">Verdadeiro/Falso</option>
+              <option value="associacao">Associação</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="filterDisciplina">Disciplina</label>
+            <select id="filterDisciplina" onchange="applyFilters()">
+              <option value="">Todas</option>
+              <option value="Matemática">Matemática</option>
+              <option value="Português">Português</option>
+              <option value="Biologia">Biologia</option>
+              <option value="Química">Química</option>
+              <option value="Física">Física</option>
+              <option value="História">História</option>
+              <option value="Geografia">Geografia</option>
+              <option value="Inglês">Inglês</option>
+            </select>
+          </div>
+
+          <div class="filter-group">
+            <label for="filterData">Período</label>
+            <select id="filterData" onchange="applyFilters()">
+              <option value="">Todos</option>
+              <option value="hoje">Hoje</option>
+              <option value="semana">Última Semana</option>
+              <option value="mes">Último Mês</option>
+            </select>
+          </div>
+
+          <button class="filter-clear" onclick="clearFilters()">
+            🗑️ Limpar Filtros
+          </button>
+        </div>
+
+        <div class="search-box">
+          <input
+            type="text"
+            class="search-input"
+            id="searchInput"
+            placeholder="🔍 Buscar questões..."
+            oninput="searchQuestions()"
+          />
+        </div>
+
+        <div class="sidebar-content" id="historico">
+          <div style="text-align: center; color: #999; padding: 20px">
+            Nenhuma questão gerada ainda
+          </div>
+        </div>
+
+        <div class="sidebar-footer">
+          <button class="btn btn-small btn-danger" onclick="clearHistory()">
+            🗑️ Limpar Histórico
+          </button>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <div class="container">
+          <div class="header">
+            <button
+              class="btn-icon menu-toggle"
+              onclick="toggleSidebar()"
+              title="Histórico"
+            >
+              ☰
+            </button>
+            <div>
+              <h1>🎓 NEW NERD</h1>
+              <p>Gerador de Questões com Inteligência Artificial</p>
+              <a
+                href="./biblioteca-professor.html"
+                class="btn btn-small"
+                style="margin-top: 0.5rem; display: inline-block"
+              >
+                📚 Biblioteca do Professor
+              </a>
+            </div>
+          </div>
+
+          <div class="main-card">
+            <form id="questionForm">
+              <div
+                class="mode-tabs"
+                style="
+                  display: flex;
+                  gap: 10px;
+                  margin-bottom: 20px;
+                  border-bottom: 2px solid #e0e0e0;
+                "
+              >
+                <button
+                  class="mode-tab active"
+                  onclick="switchMode('individual')"
+                  style="
+                    flex: 1;
+                    padding: 12px;
+                    border: none;
+                    background: linear-gradient(
+                      135deg,
+                      #667eea 0%,
+                      #764ba2 100%
+                    );
+                    color: white;
+                    cursor: pointer;
+                    border-radius: 8px 8px 0 0;
+                    font-weight: 600;
+                  "
+                >
+                  📝 Questão Individual
+                </button>
+                <button
+                  class="mode-tab"
+                  onclick="switchMode('prova')"
+                  style="
+                    flex: 1;
+                    padding: 12px;
+                    border: none;
+                    background: #f5f5f5;
+                    color: #666;
+                    cursor: pointer;
+                    border-radius: 8px 8px 0 0;
+                    font-weight: 600;
+                  "
+                >
+                  📋 Prova Completa
+                </button>
+              </div>
+
+              <div id="individualPanel">
+                <div class="form-group">
+                  <label for="tema">🔖 Tema ou Tópico</label>
+                  <input
+                    type="text"
+                    id="tema"
+                    placeholder="Ex: Fotossíntese, Segunda Guerra Mundial, Equações do 2º grau..."
+                    required
+                  />
+                </div>
+
+                <div class="form-group">
+                  <label for="criterios">
+                    🎯 Critérios de Correção (opcional)
+                  </label>
+                  <textarea
+                    id="criterios"
+                    class="form-control"
+                    rows="3"
+                    placeholder="Ex: Clareza (30%), Argumentação (30%), Exemplos (20%), Gramática (20%)"
+                  ></textarea>
+                  <small style="color: #666; font-size: 12px">
+                    💡 Ajuda a IA a personalizar os critérios de avaliação da
+                    questão
+                  </small>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="disciplina">📚 Disciplina (opcional)</label>
+                    <select id="disciplina">
+                      <option value="auto">Automático</option>
+                      <option value="Matemática">Matemática</option>
+                      <option value="Português">Português</option>
+                      <option value="Biologia">Biologia</option>
+                      <option value="Química">Química</option>
+                      <option value="Física">Física</option>
+                      <option value="História">História</option>
+                      <option value="Geografia">Geografia</option>
+                      <option value="Inglês">Inglês</option>
+                      <option value="Artes">Artes</option>
+                      <option value="Educação Física">Educação Física</option>
+                      <option value="Filosofia">Filosofia</option>
+                      <option value="Sociologia">Sociologia</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="tipo">📊 Tipo de Questão</label>
+                    <select id="tipo" required>
+                      <option value="multipla_escolha">Múltipla Escolha</option>
+                      <option value="discursiva">Discursiva</option>
+                      <option value="verdadeiro_falso">
+                        Verdadeiro ou Falso
+                      </option>
+                      <option value="associacao">Associação</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="serie">🎓 Série (opcional)</label>
+                    <select id="serie">
+                      <option value="auto">Automático</option>
+                      <option value="6º ano">6º ano</option>
+                      <option value="7º ano">7º ano</option>
+                      <option value="8º ano">8º ano</option>
+                      <option value="9º ano">9º ano</option>
+                      <option value="1º EM">1º ano EM</option>
+                      <option value="2º EM">2º ano EM</option>
+                      <option value="3º EM">3º ano EM</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="dificuldade">⚡ Dificuldade</label>
+                    <select id="dificuldade">
+                      <option value="fácil">Fácil</option>
+                      <option value="média">Média</option>
+                      <option value="difícil">Difícil</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="quantidade">🔢 Quantidade</label>
+                    <select id="quantidade">
+                      <option value="1">1 questão</option>
+                      <option value="2">2 questões</option>
+                      <option value="3">3 questões</option>
+                      <option value="5">5 questões</option>
+                      <option value="10">10 questões</option>
+                      <option value="15">15 questões</option>
+                      <option value="20">20 questões</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button type="submit" class="btn" id="generateBtn">
+                  ✨ Gerar Questão
+                </button>
+              </div>
+            </form>
+            <div id="provaPanel" style="display: none">
+              <form id="provaForm">
+                <div class="form-group">
+                  <label for="provaTitle">📝 Nome da Prova</label>
+                  <input
+                    type="text"
+                    id="provaTitle"
+                    placeholder="Ex: Avaliação Bimestral de Biologia"
+                    required
+                  />
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="provaDisciplina">📚 Disciplina</label>
+                    <select id="provaDisciplina" required>
+                      <option value="">Selecione</option>
+                      <option value="Matemática">Matemática</option>
+                      <option value="Português">Português</option>
+                      <option value="Biologia">Biologia</option>
+                      <option value="Química">Química</option>
+                      <option value="Física">Física</option>
+                      <option value="História">História</option>
+                      <option value="Geografia">Geografia</option>
+                      <option value="Inglês">Inglês</option>
+                      <option value="Artes">Artes</option>
+                      <option value="Educação Física">Educação Física</option>
+                      <option value="Filosofia">Filosofia</option>
+                      <option value="Sociologia">Sociologia</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="provaSerie">🎓 Série</label>
+                    <select id="provaSerie" required>
+                      <option value="">Selecione</option>
+                      <option value="6º ano">6º ano</option>
+                      <option value="7º ano">7º ano</option>
+                      <option value="8º ano">8º ano</option>
+                      <option value="9º ano">9º ano</option>
+                      <option value="1º EM">1º ano EM</option>
+                      <option value="2º EM">2º ano EM</option>
+                      <option value="3º EM">3º ano EM</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="provaTopicos"
+                    >🎯 Tópicos (separe por vírgula)</label
+                  >
+                  <textarea
+                    id="provaTopicos"
+                    rows="3"
+                    placeholder="Ex: Fotossíntese, Respiração Celular, Ciclo de Krebs"
+                    required
+                  ></textarea>
+                  <small style="color: #666"
+                    >💡 Digite os tópicos que já foram ministrados aos
+                    alunos</small
+                  >
+                </div>
+
+                <div
+                  style="
+                    background: #f5f5f5;
+                    padding: 15px;
+                    border-radius: 8px;
+                    margin-bottom: 15px;
+                  "
+                >
+                  <h4 style="margin-bottom: 10px">📊 Quantidade por Tipo</h4>
+
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label for="provaQtdMultipla">Múltipla Escolha</label>
+                      <input
+                        type="number"
+                        id="provaQtdMultipla"
+                        min="0"
+                        max="20"
+                        value="5"
+                      />
+                    </div>
+                    <div class="form-group">
+                      <label for="provaQtdDiscursiva">Discursivas</label>
+                      <input
+                        type="number"
+                        id="provaQtdDiscursiva"
+                        min="0"
+                        max="10"
+                        value="2"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label for="provaQtdVF">Verdadeiro/Falso</label>
+                      <input
+                        type="number"
+                        id="provaQtdVF"
+                        min="0"
+                        max="10"
+                        value="0"
+                      />
+                    </div>
+                    <div class="form-group">
+                      <label for="provaQtdAssoc">Associação</label>
+                      <input
+                        type="number"
+                        id="provaQtdAssoc"
+                        min="0"
+                        max="5"
+                        value="0"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="provaDificuldade">⚡ Dificuldade Geral</label>
+                  <select id="provaDificuldade">
+                    <option value="fácil">Fácil</option>
+                    <option value="média">Média</option>
+                    <option value="difícil">Difícil</option>
+                    <option value="mista">Mista (variada)</option>
+                  </select>
+                </div>
+
+                <button type="submit" class="btn" id="generateProvaBtn">
+                  📋 Gerar Prova Completa
+                </button>
+              </form>
+            </div>
+
+            <div class="error" id="error"></div>
+
+            <div class="loading" id="loading">
+              <div class="spinner"></div>
+              <p id="loadingText">Gerando questão com IA...</p>
+              <div
+                class="progress-container"
+                id="progressContainer"
+                style="display: none; margin-top: 20px; width: 100%"
+              >
+                <div class="progress-bar">
+                  <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <p
+                  id="progressText"
+                  style="text-align: center; margin-top: 10px; color: #666"
+                >
+                  0 de 0
+                </p>
+              </div>
+            </div>
+
+            <div class="result" id="result"></div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <button class="theme-toggle" onclick="toggleTheme()" title="Alternar tema">
+      🌙
+    </button>
+
+    <!-- 1️⃣ PRIMEIRO: Bibliotecas externas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docx@7.8.2/build/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+    <!-- 2️⃣ SEGUNDO: Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- 3️⃣ TERCEIRO: Seus scripts (nesta ordem) -->
+    <script src="js/config.js"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/generator.js"></script>
+    <script src="js/export.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/history.js"></script>
+    <script src="js/dashboard.js"></script>
+
+    <script>
+      // ========================================
+      // POLYFILL DE TEMA (DARK/LIGHT MODE)
+      // ========================================
+      (function () {
+        const KEY = "nn-theme";
+        const prefersDark =
+          window.matchMedia &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+        function apply(theme) {
+          document.body.setAttribute("data-theme", theme);
+          const btn = document.querySelector(".theme-toggle");
+          if (btn) {
+            btn.textContent = theme === "dark" ? "☀️" : "🌙";
+          }
+        }
+
+        if (typeof window.toggleTheme !== "function") {
+          window.toggleTheme = function () {
+            const cur =
+              document.body.getAttribute("data-theme") ||
+              localStorage.getItem(KEY) ||
+              (prefersDark ? "dark" : "light");
+            const next = cur === "dark" ? "light" : "dark";
+            localStorage.setItem(KEY, next);
+            apply(next);
+          };
+        }
+
+        apply(localStorage.getItem(KEY) || (prefersDark ? "dark" : "light"));
+
+        // self-tests simples
+        try {
+          console.assert(
+            typeof window.toggleTheme === "function",
+            "toggleTheme deve existir"
+          );
+          const before = document.body.getAttribute("data-theme");
+          window.toggleTheme();
+          const after = document.body.getAttribute("data-theme");
+          console.assert(
+            after && after !== before,
+            "toggleTheme deve alternar o data-theme"
+          );
+          window.toggleTheme(); // volta ao estado original
+        } catch (e) {
+          console.warn("Self-test de tema falhou:", e);
+        }
+      })();
+
+      // ========================================
+      // ALTERNAR ENTRE QUESTÃO INDIVIDUAL E PROVA
+      // ========================================
+      function switchMode(mode) {
+        const tabs = document.querySelectorAll(".mode-tab");
+        const individualPanel = document.getElementById("individualPanel");
+        const provaPanel = document.getElementById("provaPanel");
+        const temaInput = document.getElementById("tema");
+
+        tabs.forEach((tab) => {
+          tab.classList.remove("active");
+          tab.style.background = "#f5f5f5";
+          tab.style.color = "#666";
+        });
+
+        if (mode === "individual") {
+          tabs[0].classList.add("active");
+          tabs[0].style.background =
+            "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
+          tabs[0].style.color = "white";
+          individualPanel.style.display = "block";
+          provaPanel.style.display = "none";
+          if (temaInput) temaInput.required = true;
+        } else {
+          tabs[1].classList.add("active");
+          tabs[1].style.background =
+            "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
+          tabs[1].style.color = "white";
+          individualPanel.style.display = "none";
+          provaPanel.style.display = "block";
+          if (temaInput) temaInput.required = false;
+        }
+      }
+
+      // ========================================
+      // GERAR PROVA COMPLETA
+      // ========================================
+      document
+        .getElementById("provaForm")
+        ?.addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const config = {
+            titulo: document.getElementById("provaTitle").value,
+            disciplina: document.getElementById("provaDisciplina").value,
+            serie: document.getElementById("provaSerie").value,
+            topicos: document
+              .getElementById("provaTopicos")
+              .value.split(",")
+              .map((t) => t.trim()),
+            qtdMultipla:
+              parseInt(document.getElementById("provaQtdMultipla").value) || 0,
+            qtdDiscursiva:
+              parseInt(document.getElementById("provaQtdDiscursiva").value) ||
+              0,
+            qtdVF: parseInt(document.getElementById("provaQtdVF").value) || 0,
+            qtdAssoc:
+              parseInt(document.getElementById("provaQtdAssoc").value) || 0,
+            dificuldade: document.getElementById("provaDificuldade").value,
+          };
+
+          const total =
+            config.qtdMultipla +
+            config.qtdDiscursiva +
+            config.qtdVF +
+            config.qtdAssoc;
+
+          if (total === 0) {
+            alert("❌ Adicione pelo menos 1 questão!");
+            return;
+          }
+
+          if (total > 30) {
+            alert("⚠️ Máximo de 30 questões por prova!");
+            return;
+          }
+
+          console.log("🎯 Gerando prova:", config);
+
+          try {
+            const prova = await Generator.gerarProvaCompleta(config);
+            console.log("✅ Prova gerada:", prova);
+            renderProva(prova); // Chama a função de renderização corrigida
+          } catch (error) {
+            console.error("❌ Erro ao gerar prova:", error);
+            alert("Erro: " + error.message);
+          }
+        });
+
+      // ========================================
+      // RENDERIZAR PROVA (COM BOTÕES DE EXPORT CORRIGIDOS)
+      // ========================================
+      function renderProva(prova) {
+        const resultDiv = document.getElementById("result");
+
+        // ⭐️ CORREÇÃO: Armazena as questões globalmente para exportação
+        window.currentQuestions = prova.questoes || [];
+
+        resultDiv.innerHTML = `
+      <div class="prova-header" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+        <h2>📋 ${prova.titulo}</h2>
+        <p>${prova.disciplina} • ${prova.serie} • ${
+          prova.questoes.length
+        } questões</p>
+      </div>
+      
+      <div class="prova-questoes">
+        ${prova.questoes.map((q, i) => Generator.renderQuestion(q, i)).join("")}
+      </div>
+      
+      <div class="actions" style="margin-top: 30px; position: sticky; bottom: 20px; background: var(--bg-card); padding: 20px; border-radius: 8px; box-shadow: var(--shadow-lg);">
+        <button class="btn" id="btn-prova-new">🔄 Gerar Nova Prova</button>
+        <button class="btn btn-secondary" id="btn-prova-copy-all">📋 Copiar Tudo</button>
+        <button class="btn btn-secondary" id="btn-prova-pdf">📄 Exportar PDF</button>
+        <button class="btn btn-secondary" id="btn-prova-word">📝 Exportar Word</button>
+        <button class="btn btn-secondary" id="btn-prova-json">🧪 Baixar JSON</button>
+        <button class="btn btn-secondary" id="btn-prova-csv">🧬 Baixar CSV</button>
+        <button class="btn btn-secondary" id="btn-prova-zip">📦 Baixar ZIP</button>
+      </div>
+    `;
+
+        resultDiv.scrollIntoView({ behavior: "smooth" });
+
+        // ⭐️ CORREÇÃO: Adiciona os event listeners para os novos botões
+        // (Eles chamam as funções que JÁ EXISTEM no seu export.js)
+        const qs = window.currentQuestions;
+
+        document
+          .getElementById("btn-prova-new")
+          ?.addEventListener("click", () => location.reload());
+
+        document
+          .getElementById("btn-prova-copy-all")
+          ?.addEventListener("click", () => {
+            if (typeof window.copyAllQuestions === "function")
+              return copyAllQuestions();
+            alert("Cópia indisponível. Carregue export.js.");
+          });
+
+        document
+          .getElementById("btn-prova-pdf")
+          ?.addEventListener("click", () => {
+            if (typeof window.exportAllPDF === "function")
+              return exportAllPDF(qs, prova.titulo);
+            alert("Exportação PDF indisponível. Carregue export.js.");
+          });
+
+        document
+          .getElementById("btn-prova-word")
+          ?.addEventListener("click", () => {
+            if (typeof window.exportAllWord === "function")
+              return exportAllWord(qs, prova.titulo);
+            alert("Exportação Word indisponível. Carregue export.js.");
+          });
+
+        document
+          .getElementById("btn-prova-json")
+          ?.addEventListener("click", () => {
+            if (typeof window.exportAllJSON === "function")
+              return exportAllJSON(qs, prova.titulo);
+            alert("Exportação JSON indisponível. Carregue export.js.");
+          });
+
+        document
+          .getElementById("btn-prova-csv")
+          ?.addEventListener("click", () => {
+            if (typeof window.exportAllCSV === "function")
+              return exportAllCSV(qs, prova.titulo);
+            alert("Exportação CSV indisponível. Carregue export.js.");
+          });
+
+        document
+          .getElementById("btn-prova-zip")
+          ?.addEventListener("click", () => {
+            if (typeof window.exportAllZIP === "function")
+              return exportAllZIP(qs, prova.titulo);
+            alert("Exportação ZIP indisponível. Carregue export.js.");
+          });
+
+        // Remove as funções placeholder antigas
+        // window.exportarProva = (titulo, formato) => alert(`Função antiga removida. Use os novos botões.`);
+        // window.exportarGabarito = (titulo) => alert(`Função antiga removida.`);
+      }
+
+      // Funções placeholder antigas (agora são desnecessárias,
+      // pois os event listeners acima as substituem)
+      function exportarProva(titulo, formato) {
+        alert(
+          `(Placeholder) Exportando prova "${titulo}" em ${formato.toUpperCase()}...`
+        );
+      }
+
+      function exportarGabarito(titulo) {
+        alert(`(Placeholder) Exportando gabarito de "${titulo}"...`);
+      }
+    </script>
+  </body>
+</html>

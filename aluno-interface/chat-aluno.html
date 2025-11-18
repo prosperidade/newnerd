@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Chat IA - NEW NERD</title>
+    <link rel="stylesheet" href="css/aluno.css" />
+    <style>
+      .chat-ia-container {
+        max-width: 900px;
+        margin: 20px auto;
+      }
+      .chat-box {
+        background: var(--bg-card);
+        border-radius: 15px;
+        padding: 20px;
+        min-height: 500px;
+      }
+      .mensagens {
+        height: 400px;
+        overflow-y: auto;
+        margin-bottom: 20px;
+      }
+      .msg {
+        margin: 10px 0;
+        padding: 12px;
+        border-radius: 10px;
+        max-width: 80%;
+      }
+      .msg.usuario {
+        background: var(--primary-color);
+        color: white;
+        margin-left: auto;
+      }
+      .msg.ia {
+        background: var(--bg-secondary);
+      }
+      .input-area {
+        display: flex;
+        gap: 10px;
+      }
+      .input-msg {
+        flex: 1;
+        padding: 12px;
+        border: 2px solid var(--border-color);
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="navbar">
+      <div class="nav-content">
+        <h2>🤖 Assistente de Estudos</h2>
+        <button onclick="location.href='painel.html'" class="btn-back">
+          ← Voltar
+        </button>
+      </div>
+    </nav>
+
+    <div class="chat-ia-container">
+      <div class="chat-box">
+        <div id="mensagens" class="mensagens">
+          <div class="msg ia">
+            👋 Olá! Sou seu assistente de estudos. Como posso ajudar hoje?
+          </div>
+        </div>
+        <div class="input-area">
+          <input
+            type="text"
+            id="inputMsg"
+            class="input-msg"
+            placeholder="Pergunte sobre suas dúvidas..."
+          />
+          <button onclick="enviarMensagem()" class="btn">Enviar</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/chat-ia-aluno.js"></script>
+  </body>
+</html>

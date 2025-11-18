@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Resultado</title>
+    <link rel="stylesheet" href="css/aluno.css" />
+  </head>
+  <body>
+    <nav class="navbar">
+      <div class="nav-content">
+        <button class="btn-back" onclick="voltarPainel()">
+          ← Voltar ao Painel
+        </button>
+        <h2>🎓 Moniton</h2>
+      </div>
+    </nav>
+
+    <div class="container">
+      <div class="resultado-container">
+        <div class="resultado-card" id="resultadoCard">
+          <div class="loading">Carregando resultado...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ordem correta: Supabase CDN -> config -> auth -> resultado -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+      function voltarPainel() {
+        window.location.href = "painel.html";
+      }
+    </script>
+    <script src="js/resultado.js"></script>
+  </body>
+</html>

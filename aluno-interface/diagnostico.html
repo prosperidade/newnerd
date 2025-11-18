@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Diagnóstico Pedagógico - Moniton</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <link rel="stylesheet" href="css/aluno.css" />
+
+    <style>
+      .diagnostic-card {
+        background: #fff;
+        border-radius: 15px;
+        padding: 25px;
+        margin-bottom: 20px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+      }
+      .section-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 20px;
+      }
+      .preset-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
+        margin: 20px 0;
+      }
+      .preset-box {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 4px solid #dee2e6;
+        border-radius: 20px;
+        padding: 35px 20px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-align: center;
+        position: relative;
+        min-height: 200px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      .preset-box input[type="radio"] {
+        position: absolute;
+        opacity: 0;
+      }
+      .preset-box:hover {
+        transform: translateY(-8px);
+        border-color: #667eea;
+        box-shadow: 0 12px 35px rgba(102, 126, 234, 0.3);
+      }
+      .preset-box:has(input:checked) {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-color: #667eea;
+        box-shadow: 0 15px 40px rgba(102, 126, 234, 0.5);
+      }
+      .preset-box:has(input:checked)::before {
+        content: "✓";
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        background: white;
+        color: #667eea;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 24px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      }
+      .preset-icon {
+        font-size: 4rem;
+        margin-bottom: 15px;
+        filter: grayscale(100%);
+        transition: filter 0.3s;
+      }
+      .preset-box:has(input:checked) .preset-icon {
+        filter: grayscale(0%) drop-shadow(0 4px 8px rgba(255, 255, 255, 0.5));
+      }
+      .preset-title {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 8px;
+        transition: color 0.3s;
+      }
+      .preset-box:has(input:checked) .preset-title {
+        color: white;
+      }
+      .preset-subtitle {
+        font-size: 1rem;
+        color: #666;
+        transition: color 0.3s;
+      }
+      .preset-box:has(input:checked) .preset-subtitle {
+        color: rgba(255, 255, 255, 0.9);
+      }
+      .interactive-test {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: #fff;
+        border-radius: 12px;
+        padding: 20px;
+        margin: 15px 0;
+      }
+      .test-task {
+        font-weight: 600;
+        margin-bottom: 12px;
+        line-height: 1.6;
+      }
+      .test-input {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-size: 16px;
+        margin: 8px 0;
+      }
+      .timer {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 20px;
+        padding: 8px 15px;
+        display: inline-block;
+        font-weight: 700;
+        margin-bottom: 10px;
+      }
+      .btn-test {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: #fff;
+        border: none;
+        padding: 12px 25px;
+        border-radius: 8px;
+        font-weight: 700;
+        cursor: pointer;
+        margin: 8px 4px;
+        transition: transform 0.2s;
+      }
+      .btn-test:hover {
+        transform: translateY(-2px);
+      }
+      .btn-test:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .progress-bar {
+        background: #e2e8f0;
+        height: 10px;
+        border-radius: 5px;
+        overflow: hidden;
+        margin: 20px 0;
+      }
+      .progress-fill {
+        background: linear-gradient(90deg, #667eea, #764ba2);
+        height: 100%;
+        transition: width 0.3s;
+      }
+      .option-modern {
+        display: flex;
+        align-items: center;
+        background: #f8f9fa;
+        padding: 18px 20px;
+        margin-bottom: 12px;
+        border-radius: 12px;
+        border: 3px solid #e0e0e0;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+      .option-modern:hover {
+        border-color: #667eea;
+        background: #f0f4ff;
+        transform: translateX(5px);
+      }
+      .option-modern input[type="radio"] {
+        position: absolute;
+        opacity: 0;
+      }
+      .radio-custom {
+        width: 28px;
+        height: 28px;
+        border: 3px solid #667eea;
+        border-radius: 6px;
+        margin-right: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: white;
+        flex-shrink: 0;
+      }
+      .option-modern input[type="radio"]:checked ~ .radio-custom {
+        background: #667eea;
+      }
+      .option-modern input[type="radio"]:checked ~ .radio-custom::after {
+        content: "✓";
+        color: white;
+        font-size: 18px;
+        font-weight: bold;
+      }
+      .option-modern:has(input:checked) {
+        border-color: #667eea;
+        background: linear-gradient(135deg, #e3f2fd 0%, #f0f4ff 100%);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+      }
+      .option-text {
+        font-size: 16px;
+        color: #333;
+        line-height: 1.4;
+      }
+      .option-modern input[type="radio"]:checked ~ .option-text {
+        font-weight: 700;
+        color: #667eea;
+      }
+      .socio-section {
+        background: white;
+        border-radius: 12px;
+        padding: 25px;
+        margin: 20px 0;
+        border-left: 5px solid #667eea;
+      }
+      .socio-section-title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #667eea;
+        margin-bottom: 10px;
+      }
+      .socio-section-subtitle {
+        font-size: 0.9rem;
+        color: #666;
+        margin-bottom: 18px;
+        font-style: italic;
+      }
+      .logic-option {
+        display: inline-block;
+        background: rgba(255, 255, 255, 0.2);
+        padding: 10px 20px;
+        margin: 5px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .logic-option:hover {
+        background: rgba(255, 255, 255, 0.3);
+      }
+      .logic-option input {
+        margin-right: 8px;
+      }
+      #lit-opts .option,
+      #mat-opts .option {
+        display: flex;
+        align-items: center;
+        background: #f8f9fa;
+        padding: 18px 20px;
+        margin-bottom: 12px;
+        border-radius: 12px;
+        border: 3px solid #e0e0e0;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+      #lit-opts .option:hover,
+      #mat-opts .option:hover {
+        border-color: #667eea;
+        background: #f0f4ff;
+        transform: translateX(5px);
+      }
+      #lit-opts .option input[type="radio"],
+      #mat-opts .option input[type="radio"] {
+        position: absolute;
+        opacity: 0;
+      }
+      #lit-opts .option .radio-custom,
+      #mat-opts .option .radio-custom {
+        width: 28px;
+        height: 28px;
+        border: 3px solid #667eea;
+        border-radius: 6px;
+        margin-right: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: white;
+        flex-shrink: 0;
+      }
+      #lit-opts .option input[type="radio"]:checked ~ .radio-custom,
+      #mat-opts .option input[type="radio"]:checked ~ .radio-custom {
+        background: #667eea;
+      }
+      #lit-opts .option input[type="radio"]:checked ~ .radio-custom::after,
+      #mat-opts .option input[type="radio"]:checked ~ .radio-custom::after {
+        content: "✓";
+        color: white;
+        font-size: 18px;
+        font-weight: bold;
+      }
+      #lit-opts .option:has(input:checked),
+      #mat-opts .option:has(input:checked) {
+        border-color: #667eea;
+        background: linear-gradient(135deg, #e3f2fd 0%, #f0f4ff 100%);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+      }
+      #lit-opts .option .option-label,
+      #mat-opts .option .option-label {
+        font-size: 16px;
+        color: #333;
+        line-height: 1.4;
+      }
+      #lit-opts .option input[type="radio"]:checked ~ .option-label,
+      #mat-opts .option input[type="radio"]:checked ~ .option-label {
+        font-weight: 700;
+        color: #667eea;
+      }
+      .feedback {
+        margin-top: 10px;
+        padding: 10px;
+        border-radius: 8px;
+        font-size: 0.95rem;
+      }
+      .feedback.success {
+        background: #e6fcf5;
+        color: #087f5b;
+      }
+      .feedback.error {
+        background: #ffe3e3;
+        color: #c92a2a;
+      }
+      .panel-white {
+        background: #fff;
+        border-radius: 12px;
+        padding: 20px;
+        margin: 15px 0;
+        color: #333;
+      }
+      .hidden {
+        display: none;
+      }
+      #speed-box {
+        width: 120px;
+        height: 120px;
+        border-radius: 15px;
+        background: #6b7280;
+        margin: 15px auto;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .cpt-stream {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: center;
+        min-height: 80px;
+        padding: 20px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+      }
+      .cpt-char {
+        font-size: 2.5rem;
+        background: #fff;
+        border-radius: 12px;
+        padding: 15px 20px;
+        color: #333;
+        cursor: pointer;
+        user-select: none;
+        font-weight: 700;
+        transition: all 0.2s;
+      }
+      .cpt-char:active {
+        transform: scale(0.85);
+        background: #667eea;
+        color: white;
+      }
+      .cpt-char.clicked {
+        animation: clickFeedback 0.3s ease;
+      }
+      @keyframes clickFeedback {
+        0% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(0.85);
+          background: #667eea;
+          color: white;
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+      .results-panel {
+        background: linear-gradient(135deg, #56ab2f, #a8e6cf);
+        color: #fff;
+        border-radius: 15px;
+        padding: 30px;
+        margin-top: 30px;
+      }
+      .profile-summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 15px;
+        margin: 25px 0;
+      }
+      .profile-item {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+      }
+      .profile-value {
+        font-size: 2.5rem;
+        font-weight: 800;
+        display: block;
+        margin-bottom: 5px;
+      }
+      .badge {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 4px 12px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        margin-left: 5px;
+      }
+      .badge-atencao {
+        background: #ffe3e3;
+        color: #c92a2a;
+      }
+      .badge-adequado {
+        background: #e7f5ff;
+        color: #1864ab;
+      }
+      .badge-avancado {
+        background: #e6fcf5;
+        color: #087f5b;
+      }
+      .btn-pdf {
+        background: linear-gradient(135deg, #e74c3c, #c0392b);
+        color: white;
+        border: none;
+        padding: 15px 35px;
+        border-radius: 10px;
+        font-size: 18px;
+        font-weight: 700;
+        cursor: pointer;
+        margin: 10px;
+        transition: all 0.3s ease;
+      }
+      .btn-pdf:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(231, 76, 60, 0.4);
+      }
+      @media (max-width: 768px) {
+        .preset-grid {
+          grid-template-columns: repeat(2, 1fr);
+          gap: 15px;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <nav class="navbar">
+      <div class="nav-content">
+        <button class="btn-back" onclick="voltarPainel()">← Voltar</button>
+        <h1>🧠 Diagnóstico Pedagógico</h1>
+        <div class="nav-user">
+          <span id="alunoNome">Carregando...</span>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container">
+      <div class="painel-header">
+        <p>
+          Avaliação multidimensional: Cognitivo + Metacognição + Socioemocional
+          + Conteúdo
+        </p>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <div class="diagnostic-card">
+        <h2 class="section-title">🎯 Selecione sua Faixa Escolar</h2>
+        <div class="preset-grid">
+          <label class="preset-box">
+            <input type="radio" name="preset" value="efi" checked />
+            <div class="preset-icon">📚</div>
+            <div class="preset-title">EF I</div>
+            <div class="preset-subtitle">1ª—4ª série</div>
+          </label>
+          <label class="preset-box">
+            <input type="radio" name="preset" value="efii" />
+            <div class="preset-icon">📖</div>
+            <div class="preset-title">EF II</div>
+            <div class="preset-subtitle">5ª—8ª série</div>
+          </label>
+          <label class="preset-box">
+            <input type="radio" name="preset" value="em" />
+            <div class="preset-icon">🎓</div>
+            <div class="preset-title">Ensino Médio</div>
+            <div class="preset-subtitle">1º—3º ano</div>
+          </label>
+          <label class="preset-box">
+            <input type="radio" name="preset" value="grad" />
+            <div class="preset-icon">🏆</div>
+            <div class="preset-title">Graduação</div>
+            <div class="preset-subtitle">Ensino Superior</div>
+          </label>
+        </div>
+      </div>
+
+      <div class="diagnostic-card">
+        <h2 class="section-title">⚡ Avaliação Cognitiva + Metacognição</h2>
+
+        <div class="interactive-test">
+          <div class="timer" id="timer">Tempo: 00:00</div>
+          <div class="test-task">
+            <strong>Memória de Trabalho:</strong> Memorize a sequência:
+            <span
+              id="mem-seq"
+              style="
+                background: rgba(255, 255, 255, 0.3);
+                padding: 5px 12px;
+                border-radius: 8px;
+                font-weight: 700;
+              "
+              >3, 6, 2, 1</span
+            >
+            e some apenas os números <strong>pares</strong>.
+          </div>
+          <input
+            type="number"
+            class="test-input"
+            id="mem-answer"
+            placeholder="Sua resposta..."
+          />
+          <input
+            type="number"
+            class="test-input"
+            id="mem-conf"
+            placeholder="Confiança (0—100%)"
+            min="0"
+            max="100"
+          />
+          <button class="btn-test" id="mem-check">Verificar</button>
+          <div id="mem-feedback" class="feedback hidden"></div>
+        </div>
+
+        <div class="interactive-test">
+          <div class="test-task">
+            <strong>Flexibilidade + Inibição:</strong> Clique no botão seguindo
+            a regra. A regra mudará <b id="flex-changes-label">1</b>x. Na última
+            fase: <strong>NÃO clique quando for Vermelho</strong>.
+          </div>
+          <button class="btn-test" id="flex-btn" style="background: #0ea5e9">
+            Azul
+          </button>
+          <input
+            type="number"
+            class="test-input"
+            id="flex-conf"
+            placeholder="Confiança (0—100%)"
+            min="0"
+            max="100"
+          />
+          <div id="flex-feedback" class="feedback hidden"></div>
+        </div>
+
+        <div class="interactive-test">
+          <div class="test-task">
+            <strong>Velocidade de Processamento:</strong> Clique quando o
+            quadrado ficar <b>VERDE</b>.
+          </div>
+          <div id="speed-box"></div>
+          <div id="speed-feedback" class="feedback hidden"></div>
+          <input
+            type="number"
+            class="test-input"
+            id="speed-conf"
+            placeholder="Confiança (0—100%)"
+            min="0"
+            max="100"
+          />
+        </div>
+
+        <div class="interactive-test">
+          <div class="test-task">
+            <strong>Atenção Sustentada (CPT):</strong> Clique APENAS quando
+            aparecer o <b id="cpt-target-label">X</b>.
+          </div>
+          <div style="text-align: center; margin: 15px 0">
+            <button class="btn-test" id="cpt-start">▶️ Iniciar Teste</button>
+          </div>
+          <div class="cpt-stream" id="cpt-stream"></div>
+          <div id="cpt-feedback" class="feedback hidden"></div>
+        </div>
+
+        <div class="interactive-test">
+          <div class="test-task">
+            <strong>Raciocínio Lógico:</strong> Complete a sequência:
+            <span class="logic-seq" style="font-size: 1.2rem; font-weight: 700"
+              >1 — 2 — 4 — 8 — ?</span
+            >
+          </div>
+          <div class="options" id="logic-options"></div>
+          <input
+            type="number"
+            class="test-input"
+            id="logic-conf"
+            placeholder="Confiança (0—100%)"
+            min="0"
+            max="100"
+          />
+          <div id="logic-feedback" class="feedback hidden"></div>
+        </div>
+      </div>
+
+      <div class="diagnostic-card">
+        <h2 class="section-title">📖 Sondagem de Leitura (3 itens)</h2>
+        <div class="panel-white" style="font-size: 0.9rem; color: #666">
+          Teste adaptativo: começamos no nível A. Acertando, você avança para B
+          e depois C.
+        </div>
+        <div class="question">
+          <div class="test-task" id="lit-stem" style="color: #333">—</div>
+          <div class="options" id="lit-opts"></div>
+        </div>
+        <button class="btn-test" id="lit-next" disabled>Responder</button>
+        <span
+          style="margin-left: 15px; color: #666; font-size: 0.9rem"
+          id="lit-progress"
+          >Item 0/3</span
+        >
+        <div id="lit-feedback" class="feedback hidden"></div>
+      </div>
+
+      <div class="diagnostic-card">
+        <h2 class="section-title">🔢 Sondagem de Matemática (3 itens)</h2>
+        <div class="panel-white" style="font-size: 0.9rem; color: #666">
+          Teste adaptativo: começamos no nível A. Acertando, você avança para B
+          e depois C.
+        </div>
+        <div class="question">
+          <div class="test-task" id="mat-stem" style="color: #333">—</div>
+          <div class="options" id="mat-opts"></div>
+        </div>
+        <button class="btn-test" id="mat-next" disabled>Responder</button>
+        <span
+          style="margin-left: 15px; color: #666; font-size: 0.9rem"
+          id="mat-progress"
+          >Item 0/3</span
+        >
+        <div id="mat-feedback" class="feedback hidden"></div>
+      </div>
+
+      <div class="diagnostic-card">
+        <h2 class="section-title">💪 Perfil Socioemocional</h2>
+
+        <div class="socio-section">
+          <div class="socio-section-title">🎯 Motivação</div>
+          <div class="socio-section-subtitle">
+            O que mais te motiva a estudar?
+          </div>
+          <label class="option-modern">
+            <input type="radio" name="motivation" value="curiosity" />
+            <span class="radio-custom"></span>
+            <span class="option-text"
+              >Curiosidade / interesse pelo assunto</span
+            >
+          </label>
+          <label class="option-modern">
+            <input type="radio" name="motivation" value="achievement" />
+            <span class="radio-custom"></span>
+            <span class="option-text">Conquistas / boas notas</span>
+          </label>
+          <label class="option-modern">
+            <input type="radio" name="motivation" value="future" />
+            <span class="radio-custom"></span>
+            <span class="option-text">Objetivos futuros / carreira</span>
+          </label>
+          <label class="option-modern">
+            <input type="radio" name="motivation" value="autonomy" />
+            <span class="radio-custom"></span>
+            <span class="option-text">Autonomia / liberdade de escolha</span>
+          </label>
+        </div>
+
+        <div class="socio-section">
+          <div class="socio-section-title">🌱 Mindset</div>
+          <div class="socio-section-subtitle">Como você lida com desafios?</div>
+          <label class="option-modern">
+            <input type="radio" name="mindset" value="growth" />
+            <span class="radio-custom"></span>
+            <span class="option-text">Aprendo com meus erros e persisto</span>
+          </label>
+          <label class="option-modern">
+            <input type="radio" name="mindset" value="fixed" />
+            <span class="radio-custom"></span>
+            <span class="option-text"
+              >Me frustro facilmente e desisto rápido</span
+            >
+          </label>
+        </div>
+
+        <div class="socio-section">
+          <div class="socio-section-title">😰 Ansiedade</div>
+          <div class="socio-section-subtitle">
+            Como você se sente antes de provas?
+          </div>
+          <label class="option-modern">
+            <input type="radio" name="anxiety" value="low" />
+            <span class="radio-custom"></span>
+            <span class="option-text">Fico tranquilo(a) e confiante</span>
+          </label>
+          <label class="option-modern">
+            <input type="radio" name="anxiety" value="medium" />
+            <span class="radio-custom"></span>
+            <span class="option-text"
+              >Fico nervoso(a), mas consigo controlar</span
+            >
+          </label>
+          <label class="option-modern">
+            <input type="radio" name="anxiety" value="high" />
+            <span class="radio-custom"></span>
+            <span class="option-text"
+              >Fico muito ansioso(a), atrapalha meu desempenho</span
+            >
+          </label>
+        </div>
+
+        <div class="socio-section">
+          <div class="socio-section-title">💡 Autoeficácia</div>
+          <div class="socio-section-subtitle">
+            Como você avalia sua capacidade de aprender?
+          </div>
+          <label class="option-modern">
+            <input type="radio" name="efficacy" value="high" />
+            <span class="radio-custom"></span>
+            <span class="option-text"
+              >Confio na minha capacidade de aprender</span
+            >
+          </label>
+          <label class="option-modern">
+            <input type="radio" name="efficacy" value="low" />
+            <span class="radio-custom"></span>
+            <span class="option-text"
+              >Duvido da minha capacidade com frequência</span
+            >
+          </label>
+        </div>
+
+        <div class="socio-section">
+          <div class="socio-section-title">🔥 Persistência</div>
+          <div class="socio-section-subtitle">
+            O que você faz quando encontra dificuldades?
+          </div>
+          <label class="option-modern">
+            <input type="radio" name="persistence" value="retry" />
+            <span class="radio-custom"></span>
+            <span class="option-text"
+              >Persisto e tento diferentes estratégias</span
+            >
+          </label>
+          <label class="option-modern">
+            <input type="radio" name="persistence" value="quit" />
+            <span class="radio-custom"></span>
+            <span class="option-text"
+              >Desisto facilmente quando fica difícil</span
+            >
+          </label>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin: 30px 0">
+        <button
+          class="btn-test"
+          id="generate-btn"
+          style="font-size: 1.2rem; padding: 15px 40px"
+        >
+          🚀 Gerar Diagnóstico Completo
+        </button>
+      </div>
+
+      <div class="results-panel hidden" id="results-panel">
+        <h2 style="text-align: center; margin-bottom: 20px; font-size: 2rem">
+          📋 Seu Perfil de Aprendizagem
+        </h2>
+
+        <div class="profile-summary">
+          <div class="profile-item">
+            <span class="profile-value" id="cog-score">—</span>
+            <div class="profile-label">Cognitivo (0—50)</div>
+            <div id="cog-norm" style="font-size: 0.85rem; margin-top: 5px">
+              —
+            </div>
+          </div>
+          <div class="profile-item">
+            <span class="profile-value" id="socio-score">—</span>
+            <div class="profile-label">Socioemocional (0—12)</div>
+          </div>
+          <div class="profile-item">
+            <span class="profile-value" id="meta-score">—</span>
+            <div class="profile-label">
+              Metacognição (%)
+              <span id="meta-qual" class="badge badge-adequado">—</span>
+            </div>
+          </div>
+          <div class="profile-item">
+            <span class="profile-value" id="lit-score">—</span>
+            <div class="profile-label">Leitura (0—3)</div>
+            <div id="lit-norm" style="font-size: 0.85rem; margin-top: 5px">
+              —
+            </div>
+          </div>
+          <div class="profile-item">
+            <span class="profile-value" id="mat-score">—</span>
+            <div class="profile-label">Matemática (0—3)</div>
+            <div id="mat-norm" style="font-size: 0.85rem; margin-top: 5px">
+              —
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-white">
+          <h3 style="margin-bottom: 15px">📊 Radar Multidimensional</h3>
+          <canvas id="radar-canvas" height="280"></canvas>
+        </div>
+
+        <div class="panel-white">
+          <h3 style="margin-bottom: 15px">💡 Recomendações Personalizadas</h3>
+          <div id="recommendations" style="display: grid; gap: 10px"></div>
+        </div>
+
+        <div style="text-align: center; margin-top: 25px">
+          <button class="btn-pdf" onclick="gerarPDF()">
+            📄 Baixar Relatório PDF
+          </button>
+          <button
+            class="btn-test"
+            onclick="location.reload()"
+            style="margin: 10px"
+          >
+            🔄 Novo Diagnóstico
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ordem correta: Supabase CDN -> config -> auth -> (helpers locais) -> diagnostico.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+      function voltarPainel() {
+        window.location.href = "painel.html";
+      }
+      document.addEventListener("DOMContentLoaded", async () => {
+        const u = await verificarAuth();
+        if (u) {
+          const alvo = document.getElementById("alunoNome");
+          if (alvo) alvo.textContent = u.email ?? "Aluno";
+        }
+      });
+    </script>
+    <script src="js/diagnostico.js"></script>
+  </body>
+</html>

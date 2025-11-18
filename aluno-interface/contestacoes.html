@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Minhas Contestações - Moniton</title>
+    <link rel="stylesheet" href="css/aluno.css" />
+    <style>
+      .contestacao-card {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 15px;
+        border-left: 5px solid #f57c00;
+      }
+      .status-badge {
+        display: inline-block;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 700;
+        margin-left: 10px;
+      }
+      .status-pendente {
+        background: #fff3e0;
+        color: #f57c00;
+      }
+      .status-aprovada {
+        background: #e8f5e9;
+        color: #2e7d32;
+      }
+      .status-rejeitada {
+        background: #ffebee;
+        color: #c62828;
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="navbar">
+      <div class="nav-content">
+        <button class="btn-back" onclick="voltarPainel()">← Voltar</button>
+        <h2>⚠️ Minhas Contestações</h2>
+        <div class="nav-user">
+          <span id="alunoNome">Carregando...</span>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container">
+      <div class="painel-header">
+        <h1>Contestações Enviadas</h1>
+        <p>Acompanhe o status das suas contestações</p>
+      </div>
+
+      <div id="contestacoes-list"></div>
+    </div>
+
+    <!-- Ordem: supabase CDN -> config -> auth -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+
+    <script>
+      function voltarPainel() {
+        window.location.href = "painel.html";
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        carregarContestacoes();
+      });
+
+      async function carregarContestacoes() {
+        const user = await verificarAuth();
+        if (!user) return;
+
+        // Carregar nome do aluno pelo ID (tabela 'alunos')
+        try {
+          const { data: aluno, error: alunoErr } = await supabaseClient
+            .from("alunos")
+            .select("nome")
+            .eq("id", user.id)
+            .single();
+
+          document.getElementById("alunoNome").textContent =
+            aluno?.nome || user.email || "Aluno";
+          if (alunoErr)
+            console.warn(
+              "Aviso: não foi possível obter o nome do aluno.",
+              alunoErr
+            );
+        } catch (e) {
+          console.warn("Aviso ao buscar perfil do aluno:", e);
+          document.getElementById("alunoNome").textContent =
+            user.email || "Aluno";
+        }
+
+        try {
+          // 1) Busca contestações do aluno
+          const { data: contestacoes, error: cErr } = await supabaseClient
+            .from("contestacoes")
+            .select(
+              "id, aluno_id, resposta_id, texto_contestacao, status, resposta_professor, created_at, revisado_em"
+            )
+            .eq("aluno_id", user.id)
+            .order("created_at", { ascending: false });
+
+          if (cErr) throw cErr;
+          const lista = contestacoes || [];
+
+          // 2) Busca respostas relacionadas em lote
+          const respostaIds = [
+            ...new Set(lista.map((c) => c.resposta_id).filter(Boolean)),
+          ];
+          let respostasMap = {};
+          if (respostaIds.length > 0) {
+            const { data: respostas, error: rErr } = await supabaseClient
+              .from("respostas_alunos")
+              .select(
+                "id, questao_id, nota, questoes_geradas:questao_id ( enunciado )"
+              )
+              .in("id", respostaIds);
+
+            if (rErr) throw rErr;
+            respostasMap = (respostas || []).reduce((acc, row) => {
+              acc[row.id] = row;
+              return acc;
+            }, {});
+          }
+
+          // 3) Enriquecer contestações com dados da resposta
+          const enriquecidas = lista.map((c) => ({
+            ...c,
+            resposta: c.resposta_id ? respostasMap[c.resposta_id] : null,
+          }));
+
+          exibirContestacoes(enriquecidas);
+        } catch (err) {
+          console.error("Erro ao carregar contestações:", err);
+          document.getElementById("contestacoes-list").innerHTML =
+            '<p style="text-align:center;color:#c62828;padding:40px;">Erro ao carregar suas contestações.</p>';
+        }
+      }
+
+      function exibirContestacoes(contestacoes) {
+        const list = document.getElementById("contestacoes-list");
+
+        if (!contestacoes || contestacoes.length === 0) {
+          list.innerHTML =
+            '<p style="text-align: center; color: #666; padding: 40px;">Você ainda não enviou nenhuma contestação</p>';
+          return;
+        }
+
+        list.innerHTML = contestacoes
+          .map((c) => {
+            const statusTextoMap = {
+              pendente: "Aguardando revisão",
+              aprovada: "Aprovada - Nota alterada",
+              rejeitada: "Rejeitada",
+            };
+            const statusClass = `status-${c.status}`;
+            const statusTexto = statusTextoMap[c.status] || c.status;
+
+            const enunciado = c.resposta?.questoes_geradas?.enunciado
+              ? c.resposta.questoes_geradas.enunciado.substring(0, 80) + "..."
+              : "(enunciado indisponível)";
+
+            const dataEnvio = c.created_at
+              ? new Date(c.created_at).toLocaleString("pt-BR")
+              : "-";
+
+            return `
+              <div class="contestacao-card">
+                <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:15px;">
+                  <div>
+                    <h3 style="margin:0 0 5px 0;color:#333;">Questão: ${enunciado}</h3>
+                    <small style="color:#666;">Enviado em: ${dataEnvio}</small>
+                  </div>
+                  <span class="status-badge ${statusClass}">${statusTexto}</span>
+                </div>
+
+                <div style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:15px;">
+                  <strong>Sua contestação:</strong>
+                  <p style="margin:10px 0 0 0; line-height:1.6;">${escapeHTML(
+                    c.texto_contestacao || ""
+                  )}</p>
+                </div>
+
+                ${
+                  c.resposta_professor
+                    ? `
+                  <div style="background:${
+                    c.status === "aprovada" ? "#e8f5e9" : "#ffebee"
+                  };padding:15px;border-radius:8px;">
+                    <strong>Resposta do Professor:</strong>
+                    <p style="margin:10px 0 0 0; line-height:1.6;">${escapeHTML(
+                      c.resposta_professor
+                    )}</p>
+                    ${
+                      c.revisado_em
+                        ? `<small style="color:#666;">Revisado em: ${new Date(
+                            c.revisado_em
+                          ).toLocaleString("pt-BR")}</small>`
+                        : ""
+                    }
+                  </div>`
+                    : ""
+                }
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      // simples util para evitar injeção no innerHTML
+      function escapeHTML(str) {
+        return String(str)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+    </script>
+  </body>
+</html>

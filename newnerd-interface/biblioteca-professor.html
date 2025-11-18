@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Biblioteca do Professor - NEW NERD</title>
+    <link rel="stylesheet" href="css/biblioteca-prof.css" />
+  </head>
+
+  <body>
+    <div class="biblioteca-container">
+      <div class="topbar">
+        <button class="back-btn" onclick="history.back()">← Voltar</button>
+        <div></div>
+      </div>
+
+      <div class="biblioteca-header">
+        <h1>📚 Minha Biblioteca</h1>
+        <div class="header-box">
+          <p>Organize e busque seus materiais com inteligência artificial</p>
+        </div>
+      </div>
+
+      <div class="biblioteca-grid">
+        <!-- Upload -->
+        <div class="card upload-section">
+          <h3 style="margin-bottom: 20px">📤 Adicionar Material</h3>
+
+          <div class="drop-zone" id="dropZone">
+            <div class="drop-zone-icon">📁</div>
+            <h3>Arraste seus arquivos aqui</h3>
+            <p style="color: #4b66c9; margin: 10px 0">ou</p>
+            <button class="btn" id="chooseBtn">
+              <span>📎</span>Escolher Arquivos
+            </button>
+
+            <div class="supported-formats">
+              <span class="format-badge">PDF</span>
+              <span class="format-badge">Word</span>
+              <span class="format-badge">TXT</span>
+              <span class="format-badge">CSV</span>
+              <span class="format-badge">JSON</span>
+              <span class="format-badge">ZIP</span>
+              <span class="format-badge">Áudio</span>
+              <span class="format-badge">Vídeo</span>
+            </div>
+          </div>
+
+          <input
+            type="file"
+            id="fileInput"
+            style="display: none"
+            multiple
+            accept=".pdf,.doc,.docx,.txt,.md,.csv,.json,.zip,.ppt,.pptx,.epub,.html,.mp3,.mp4"
+          />
+
+          <div id="uploadQueue" style="display: none">
+            <h4 style="margin: 20px 0 10px">📋 Fila de Upload</h4>
+            <div class="file-queue" id="fileQueue"></div>
+            <button
+              class="btn"
+              id="uploadAllBtn"
+              style="width: 100%; margin-top: 10px"
+            >
+              <span>☁️</span>Fazer Upload
+            </button>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-item">
+              <span class="stat-value" id="totalDocs">0</span>
+              <div class="stat-label">Documentos</div>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value" id="totalSize">0MB</span>
+              <div class="stat-label">Tamanho</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Library -->
+        <div class="card library-section">
+          <h3 style="margin-bottom: 20px">📖 Seus Materiais</h3>
+
+          <div class="search-bar">
+            <input
+              type="text"
+              class="search-input"
+              id="searchInput"
+              placeholder="Buscar por título..."
+            />
+            <span class="search-icon">🔍</span>
+          </div>
+
+          <div class="semantic-search">
+            <h4>🧠 Busca Inteligente</h4>
+            <textarea
+              id="semanticSearch"
+              placeholder="Ex: 'materiais sobre cinemática' ou 'textos para 2º EM sobre fotossíntese'"
+            ></textarea>
+            <button class="btn" id="semanticBtn">Buscar com IA</button>
+          </div>
+
+          <div class="filter-tabs">
+            <span class="filter-tab active" data-type="all">Todos</span>
+            <span class="filter-tab" data-type="pdf">📄 PDF</span>
+            <span class="filter-tab" data-type="docx">📝 Word</span>
+            <span class="filter-tab" data-type="txt">📃 Texto</span>
+            <span class="filter-tab" data-type="csv">🧾 CSV</span>
+            <span class="filter-tab" data-type="json">🧰 JSON</span>
+            <span class="filter-tab" data-type="zip">🗜️ ZIP</span>
+            <span class="filter-tab" data-type="audio">🎵 Áudio</span>
+            <span class="filter-tab" data-type="video">🎥 Vídeo</span>
+          </div>
+
+          <div class="documents-grid" id="documentsGrid">
+            <div class="empty-state">
+              <div class="empty-state-icon">📭</div>
+              <h3>Nenhum documento ainda</h3>
+              <p>Faça upload de seus materiais para começar</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="drawerOverlay" class="drawer-overlay"></div>
+    <div id="drawerPanel" class="drawer-panel">
+      <div class="drawer-header">
+        <h3 id="drawerTitle">Visualizar Ficheiro</h3>
+        <button id="drawerCloseBtn" class="drawer-close">&times;</button>
+      </div>
+      <div id="drawerBody" class="drawer-content"></div>
+    </div>
+
+    <button id="themeToggle" class="theme-toggle"></button>
+
+    <!-- PDF.js (versão correta, compatível com pdfjsLib) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+    </script>
+
+    <!-- DOCX -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js"></script>
+
+    <!-- CONFIG -->
+    <script src="js/config.js"></script>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- Local Storage -->
+    <script src="js/storage.js"></script>
+
+    <!-- Supabase Helper -->
+    <script src="js/supabase.js"></script>
+
+    <!-- Biblioteca -->
+    <script src="js/biblioteca-professor.js"></script>
+  </body>
+</html>

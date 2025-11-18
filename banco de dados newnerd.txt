@@ -1,0 +1,513 @@
+1. Esquemas do banco
+1.1 public
+
+É o coração da aplicação NEWNERD.
+Aqui ficam:
+
+dados de alunos, professores, provas, materiais
+
+embeddings (aluno / professor / materiais)
+
+histórico de chat e buscas
+
+funções de busca semântica e KNN
+
+funções utilitárias (gatilhos de updated_at, etc.)
+
+1.2 storage
+
+Infra do Supabase Storage:
+
+controla buckets, arquivos, prefixos e índices vetoriais ligados ao storage.
+
+Tabelas que você listou:
+
+storage.migrations
+
+storage.buckets
+
+storage.objects
+
+storage.prefixes
+
+storage.s3_multipart_uploads
+
+storage.s3_multipart_uploads_parts
+
+storage.buckets_analytics
+
+storage.vector_indexes
+
+storage.buckets_vectors
+
+1.3 realtime
+
+Infra do Realtime do Supabase (listen em mudanças de tabela).
+Funções como:
+
+realtime.broadcast_changes
+
+realtime.list_changes
+
+realtime.apply_rls
+
+etc.
+
+Você não programa aqui no dia a dia. É mais “motor” do Supabase.
+
+1.4 vault
+
+Infra pra segredos / criptografia:
+
+vault.create_secret
+
+vault.update_secret
+
+_crypto_aead_det_decrypt
+
+Usado pelo Supabase; normalmente só mexe via painel, não via SQL manual.
+
+1.5 pg_catalog, pgbouncer
+
+pg_catalog: funções internas do Postgres (tudo isso que aparece de substr, sum, uuid_in, etc.).
+
+pgbouncer.get_auth: parte do pooler de conexão da Supabase.
+
+Esses dois a gente não altera, só usa.
+
+2. Tabelas principais no schema public
+
+Vou agrupar por área de negócio, porque é assim que se consulta depois.
+
+2.1 Alunos
+
+alunos
+Cadastro principal de aluno.
+Uso provável:
+
+dados de identificação do aluno (id, nome, e-mail, matrícula, etc.)
+
+relacionamento com respostas_alunos, diagnosticos_alunos, aluno_documentos, etc.
+
+aluno_documentos
+Documentos do aluno que viram base de estudo (upload, anotações, etc.).
+
+referencia alunos
+
+conectado com aluno_embeddings (conteúdo vetorializado)
+
+aluno_embeddings
+Vetores de embeddings gerados a partir de aluno_documentos.
+
+possui coluna do tipo vector/halfvec apontando pro texto do aluno
+
+indexado para KNN (provavelmente ivfflat/hnsw)
+
+aluno_processamento_fila
+Fila de processamento (por exemplo, uploads aguardando embedding / chunk).
+
+controla status de tarefas assíncronas para o aluno (ex.: “PENDENTE”, “PROCESSANDO”, “CONCLUÍDO”)
+
+aluno_busca_historico
+Histórico de buscas do aluno na biblioteca / IA.
+
+guarda texto da pergunta, timestamp, possivelmente documentos retornados
+
+diagnosticos_alunos
+Armazena diagnósticos de desempenho ou perfil do aluno.
+
+pode se ligar com relatorios_desempenho, respostas_alunos, etc.
+
+relatorios_desempenho
+Relatórios consolidados de performance.
+
+por aluno, por prova, por período etc.
+
+2.2 Professores
+
+professores
+Cadastro principal de professor (id, nome, e-mail, etc.)
+
+arquivos_professor
+Arquivos enviados pelo professor (apostilas, slides, provas antigas, etc.)
+
+base para geração de questões e embeddings
+
+conecta com professor_fontes / professor_embeddings
+
+professor_fontes
+Metadados sobre as fontes de conteúdo do professor:
+
+pode referenciar arquivos, temas, disciplinas, níveis, etc.
+
+professor_embeddings
+Vetores derivados de conteúdo de professor (arquivos, textos, instruções).
+
+usado como base da biblioteca do professor / contexto de geração
+
+professor_embeddings_search
+Tabela auxiliar/derivada otimizada só para busca:
+
+pode ter menos colunas, index específico pra KNN, etc.
+
+prof_embeddings_head
+Tabela auxiliar de “cabeçalho”/controle de embeddings de professor:
+
+status de embeddings, versões, estatísticas, etc.
+
+2.3 Conteúdo didático / materiais
+
+materiais_didaticos
+Materiais de ensino “oficiais” (apostilas, módulos, capítulos).
+
+possivelmente referenciado por embeddings_materiais e provas
+
+embeddings_materiais
+Vetores referentes a materiais_didaticos:
+
+base para buscas semânticas globais (não só aluno/professor específico)
+
+v_todos_materiais_aluno (view)
+Visão consolidada de tudo aquilo que o aluno pode acessar:
+
+junta aluno_documentos, materiais_didaticos, talvez outras fontes.
+
+2.4 Provas e questões
+
+provas
+Provas criadas no sistema (por professor / por turma / por disciplina).
+
+se relaciona com questoes_geradas, respostas_alunos
+
+questoes_geradas
+Questões geradas automaticamente (via IA / fluxo n8n + embeddings).
+
+guarda enunciado, alternativas, gabarito, tipo (ME, VF, discursiva, associação), origem, etc.
+
+respostas_alunos
+Respostas dos alunos às questões.
+
+se relaciona com provas, questoes_geradas, alunos
+
+Views de questões:
+
+v_questoes_multipla_escolha
+
+v_questoes_vf
+
+v_questoes_discursivas
+
+v_questoes_associacao
+
+Essas views provavelmente:
+
+filtram questoes_geradas por tipo
+
+facilitam criação de provas e dashboards
+
+2.5 Chat, conversas e mensagens
+
+chat_sessoes
+Sessões de chat (um “atendimento”, uma conversa longa).
+
+chat_mensagens
+Mensagens dentro de uma sessão de chat:
+
+quem falou (aluno/sistema/professor)
+
+text da mensagem
+
+contexto de IA, etc.
+
+conversas / mensagens
+Outro modelo de histórico (provavelmente legado ou usado em outro módulo):
+
+conversas = cabeçalho da conversa
+
+mensagens = mensagens ligadas
+
+Na prática, você tem dois modelos de chat no banco:
+
+modelo chat_*
+
+modelo conversas + mensagens
+
+Vale anotar na documentação viva qual deles está ativo no código da aplicação hoje.
+
+2.6 Configuração e logs
+
+config_sistema
+Configurações gerais:
+
+chaves lógicas, flags de feature, parâmetros de IA (temperature, modelo, etc.)
+
+logs_api
+Registro de chamadas à API:
+
+request/response resumido
+
+erros, latência, etc.
+
+útil para debug de geração de questão e busca semântica
+
+contestacoes
+Contestação de questões / notas:
+
+ligada a alunos, questoes_geradas, provas
+
+registra motivo da contestação, status (aberto/fechado), decisão
+
+3. Funções customizadas no schema public
+
+Vou focar nas que claramente são tuas, não nas do Postgres.
+
+3.1 Busca semântica / biblioteca
+
+buscar_biblioteca_aluno
+Faz busca na biblioteca do aluno:
+
+entra: provavelmente texto da pergunta + id do aluno
+
+faz embedding + KNN em aluno_embeddings / aluno_documentos
+
+retorna: trechos relevantes + metadados
+
+buscar_biblioteca_professor
+Busca nos embeddings do professor (professor_embeddings):
+
+entra: texto / contexto + id do professor
+
+retorna: trechos relevantes, fontes, etc.
+
+buscar_biblioteca_professor_hibrida
+Versão híbrida de busca:
+
+mistura conteúdos do professor + materiais globais (ex.: embeddings_materiais)
+
+pode fazer rank híbrido (semantic score + filtros)
+
+buscar_biblioteca_semantica
+Função genérica de busca semântica na “biblioteca”:
+
+pode ser usada tanto por aluno quanto professor, dependendo dos filtros
+
+buscar_documentos_biblioteca
+Lista documentos disponíveis para busca:
+
+pode aceitar filtros (professor_id, turma, disciplina, etc.)
+
+retorna metadados de documentos (titulo, origem, etc.)
+
+buscar_similares
+Função de “similaridade bruta”:
+
+dado um embedding ou id, retorna itens mais parecidos em alguma tabela target
+
+buscar_texto_biblioteca
+
+buscar_texto_biblioteca_aluno
+
+buscar_texto_biblioteca_limit
+
+Variações mais textuais (sem embedding) ou com limite de linhas:
+
+podem usar ILIKE, tsvector, etc., ou combinar com embedding internamente.
+
+3.2 Funções de embeddings / vetores
+
+Conjunto de funções que encapsulam chamadas à API de embeddings e consultas:
+
+gerar_embedding
+
+gerar_embedding_seguro
+
+Devem chamar o serviço de embedding (via Supabase function/http) e salvar vetores.
+A versão “seguro” provavelmente trata:
+
+retries
+
+limites
+
+erros da API
+
+insert_document_with_embedding
+Provavelmente:
+
+insere um documento em tabela (ex.: embeddings_materiais / aluno_documentos)
+
+gera embedding
+
+conecta tudo em uma transação
+
+insert_professor_embedding
+Versão focada em professor:
+
+cria linha em professor_embeddings + vetor
+
+match_embeddings
+
+match_prof_context
+
+match_aluno_documents
+
+knn_professor_context
+
+Funções KNN mais “alto nível”:
+
+internamente usam tipos vector / halfvec
+
+usam operadores <-> (l2_distance, inner_product, cosine_distance)
+
+aplicam LIMIT n, WHERE por professor/aluno, etc.
+
+Essas são o núcleo da busca semântica do projeto, usando as extensões:
+
+vector, halfvec, sparsevec
+
+indexes ivfflat, hnsw (ivfflat_*_support, hnsw_*_support, ivfflathandler, hnswhandler)
+
+sync_content_to_chunk_texto
+Possível função de sincronização:
+
+lê tabela de documentos “brutos”
+
+gera/atualiza coluna de texto “chunkado” para embeddings
+
+extract_metadata_to_columns
+Pega metadados JSON e distribui em colunas normais (discipina, série, etc.).
+
+3.3 Funções específicas de professor / embeddings
+
+prof_embeddings_autofill_all
+
+prof_embeddings_autofill_professor_id
+
+prof_embeddings_fill_professor_id
+
+Automatizam preenchimento/atualização de dados em tabelas de embeddings de professor:
+
+preencher professor_id onde estiver nulo
+
+sincronizar metadados entre professor_embeddings e outras tabelas
+
+3.4 Utilitárias / gatilhos
+
+tg_set_updated_at
+
+trigger_set_updated_at
+
+Gatilhos para manter coluna updated_at sempre atualizada em tabelas importantes.
+
+get_biblioteca_stats
+Estatísticas da biblioteca:
+
+quantidade de documentos por tipo (aluno/professor/materiais)
+
+total de embeddings
+
+etc.
+
+get_email_by_matricula
+Dado uma matrícula, retorna o e-mail vinculado:
+
+acessa alunos (e possivelmente professores)
+
+4. Extensões de vetor e tipos especiais
+
+No public você também tem todos os objetos da extensão de vetores:
+
+Tipos:
+
+vector
+
+halfvec
+
+sparsevec
+
+Funções de distância:
+
+cosine_distance
+
+inner_product
+
+l2_distance
+
+l1_distance
+
+hamming_distance
+
+jaccard_distance
+
+vector_negative_inner_product, etc.
+
+Conversões:
+
+array_to_vector
+
+array_to_halfvec
+
+array_to_sparsevec
+
+vector_to_halfvec, vector_to_sparsevec, halfvec_to_vector, etc.
+
+Index handlers:
+
+ivfflathandler, hnswhandler
+
+ivfflat_*_support, hnsw_*_support
+
+Ou seja: o banco está pronto pra vários tipos de índice vetorial (IVFFlat/HNSW), tanto para denso quanto esparso.
+
+5. Storage: buckets e vetores (schema storage)
+
+Tabelas que importam pra tua lógica de arquivos:
+
+storage.buckets
+Cadastro de buckets (ex.: aluno_uploads, professor_uploads, etc.).
+
+storage.objects
+Cada arquivo salvo no Storage:
+
+bucket_id, path, tamanho, etc.
+
+é aqui que as URLs públicas são baseadas.
+
+storage.prefixes
+Organização de pastas lógicas dentro dos buckets.
+
+storage.vector_indexes / storage.buckets_vectors
+Estruturas que o próprio Supabase usa pra relacionar buckets com índices vetoriais.
+
+storage.buckets_analytics
+Estatísticas de uso (tamanho, quantidade de objetos).
+
+Funções auxiliares (add_prefixes, can_insert_object, search, search_v2, etc.) são infra de Storage; normalmente só usadas via SDK, não diretamente.
+
+6. Como usar essa documentação nas próximas dúvidas
+
+Quando pintar dúvida do tipo “onde isso está sendo salvo?” ou “qual função faz a busca X?”:
+
+se for conteúdo/embedding de aluno →
+olhar:
+aluno_documentos, aluno_embeddings, aluno_processamento_fila,
+funções: buscar_biblioteca_aluno, match_aluno_documents.
+
+se for conteúdo/embedding de professor / biblioteca do professor →
+olhar:
+arquivos_professor, professor_fontes,
+professor_embeddings, professor_embeddings_search, prof_embeddings_head,
+funções: buscar_biblioteca_professor, buscar_biblioteca_professor_hibrida, knn_professor_context, insert_professor_embedding.
+
+se for materiais globais / “biblioteca geral” →
+olhar:
+materiais_didaticos, embeddings_materiais, v_todos_materiais_aluno,
+função: buscar_biblioteca_semantica, match_embeddings.
+
+se for provas / questões / respostas →
+olhar:
+provas, questoes_geradas, respostas_alunos, views v_questoes_*,
+mais relatorios_desempenho, contestacoes, diagnosticos_alunos.
+
+se for logs / configuração / debug →
+config_sistema, logs_api, histórico de chat (chat_*, conversas, mensagens).
+  
