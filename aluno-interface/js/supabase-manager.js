@@ -3,20 +3,48 @@
 // ============================================
 // Versão simplificada para uso no frontend
 
+// ============================================
+// GERENCIADOR SUPABASE - BIBLIOTECA DO ALUNO
+// ============================================
+// Versão simplificada para uso no frontend
+
 console.log("🔧 [1/5] supabase-manager.js INICIANDO...");
 
-const { createClient } = window.supabase;
+let supabaseClient = null;
+let isManagerInitialized = false;
 
-console.log("🔧 [2/5] createClient:", typeof createClient);
+function initializeSupabaseManager() {
+  if (isManagerInitialized) return;
 
-const supabaseUrl = CONFIG.SUPABASE_URL;
-const supabaseKey = CONFIG.SUPABASE_ANON_KEY;
+  const { createClient } = window.supabase;
+  console.log("🔧 [2/5] createClient:", typeof createClient);
 
-console.log("🔧 [3/5] CONFIG carregado");
+  const supabaseUrl = CONFIG.SUPABASE_URL;
+  const supabaseKey = CONFIG.SUPABASE_ANON_KEY;
+  console.log("🔧 [3/5] CONFIG carregado");
 
-const supabaseClient = createClient(supabaseUrl, supabaseKey);
+  supabaseClient = createClient(supabaseUrl, supabaseKey);
+  console.log("🔧 [4/5] supabaseClient criado");
 
-console.log("🔧 [4/5] supabaseClient criado");
+  // Exporta as funções para o escopo global
+  window.supabaseManager = {
+    supabaseClient,
+    uploadDocumento,
+    processarDocumento,
+    buscarDocumentos,
+    gerarEmbedding,
+    buscarBibliotecaSemantica,
+    formatarResultados,
+  };
+
+  isManagerInitialized = true;
+  console.log(
+    "✅ supabase-manager.js CARREGADO!",
+    Object.keys(window.supabaseManager)
+  );
+}
+
+document.addEventListener("configReady", initializeSupabaseManager);
 
 // ============================================
 // FUNÇÕES DE UPLOAD E PROCESSAMENTO

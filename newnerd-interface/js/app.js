@@ -6,9 +6,11 @@
 let currentQuestion = null;
 let currentQuestions = [];
 
-// Inicialização ao carregar a página
-document.addEventListener("DOMContentLoaded", function () {
-  console.log("🚀 Moniton inicializado");
+// ========================================
+// INICIALIZAÇÃO PÓS-CONFIGURAÇÃO
+// ========================================
+function initializeApp() {
+  console.log("🚀 New Nerd inicializado");
 
   // Inicializar Supabase
   if (typeof SupabaseClient !== "undefined") {
@@ -35,7 +37,10 @@ document.addEventListener("DOMContentLoaded", function () {
   setupForm();
 
   console.log("✅ Configuração completa");
-});
+}
+
+// A aplicação só inicia DEPOIS que a configuração estiver pronta.
+document.addEventListener("configReady", initializeApp);
 
 /**
  * Configura o formulário

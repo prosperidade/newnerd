@@ -81,7 +81,7 @@ function generateReport() {
 
   let report = `
 ═══════════════════════════════════════════
-           RELATÓRIO MONITON
+           RELATÓRIO NEW NERD
 ═══════════════════════════════════════════
 
 📊 ESTATÍSTICAS GERAIS
@@ -145,7 +145,7 @@ function exportReport() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `moniton-relatorio-${
+  a.download = `newnerd-relatorio-${
     new Date().toISOString().split("T")[0]
   }.txt`;
   a.click();
