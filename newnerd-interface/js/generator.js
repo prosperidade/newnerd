@@ -641,14 +641,7 @@ function displayQuestion(data) {
   </div>`;
 
   // AÇÕES — agora com JSON e CSV também, sem onclick inline
-  html += `<div classactions">
-    <button class="btn" id="btn-one-new">🔄 Nova Questão</button>
-    <button class="btn btn-secondary" id="btn-one-copy">📋 Copiar</button>
-    <button class="btn btn-secondary" id="btn-one-pdf">📄 PDF</button>
-    <button class="btn btn-secondary" id="btn-one-word">📝 Word</button>
-    <button class="btn btn-secondary" id="btn-one-json">🧪 JSON</button>
-    <button class="btn btn-secondary" id="btn-one-csv">🧬 CSV</button>
-  </div></div>`;
+  html += `</div>`;
 
   result.innerHTML = html;
   result.classList.add("active");

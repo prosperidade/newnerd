@@ -4,60 +4,30 @@
 // ============================================================================
 
 const SupabaseClient = {
-  client: null,
-  initialized: false,
-
-  _hasCreds() {
-    return Boolean(CONFIG?.SUPABASE_URL && CONFIG?.SUPABASE_ANON_KEY);
+  // O cliente agora é obtido da janela global, inicializado pelo config.js
+  get client() {
+    return window.supabaseClient;
   },
 
-  _libLoaded() {
-    return (
-      typeof supabase !== "undefined" &&
-      typeof supabase.createClient === "function"
-    );
+  // A verificação de inicialização depende da existência do cliente global
+  get initialized() {
+    return !!window.supabaseClient;
   },
 
+  // Função de inicialização agora é apenas um wrapper de verificação
   init() {
-    if (this.initialized) return true;
-
-    if (!this._libLoaded()) {
-      console.warn("⚠️ Supabase SDK não encontrado.");
+    if (!this.initialized) {
+      console.error("❌ Supabase client não disponível. `config.js` falhou ou ainda não executou.");
       return false;
     }
-    if (!this._hasCreds()) {
-      console.error("❌ CONFIG SUPABASE_URL/SUPABASE_ANON_KEY ausentes!");
-      return false;
-    }
-
-    try {
-      this.client = supabase.createClient(
-        CONFIG.SUPABASE_URL,
-        CONFIG.SUPABASE_ANON_KEY,
-        {
-          auth: {
-            persistSession: true,
-            autoRefreshToken: true,
-          },
-          global: {
-            headers: { "x-newnerd-client": "web-professor" },
-          },
-        }
-      );
-
-      this.initialized = true;
-      console.log("✅ Supabase inicializado:", CONFIG.SUPABASE_URL);
-      return true;
-    } catch (e) {
-      console.error("❌ Erro ao inicializar Supabase:", e);
-      return false;
-    }
+    return true;
   },
 
   async getProfessorId() {
     if (!this.init()) return null;
 
     try {
+      // Usa this.client, que agora é um getter para window.supabaseClient
       const { data } = await this.client.auth.getUser();
       const user = data?.user;
 
@@ -231,10 +201,10 @@ const SupabaseClient = {
       const { data, error } = await this.client
         .from("arquivos_professor")
         .select(
-          "id, professor_id, conteudo, caminho, titulo, tipo_arquivo, metadata"
+          "id, professor_id, texto_extraido, caminho, titulo, tipo_arquivo, metadata"
         )
         .eq("professor_id", professorId)
-        .textSearch("conteudo", query, {
+        .textSearch("texto_extraido", query, {
           type: "websearch",
           config: "portuguese",
         })
@@ -249,7 +219,7 @@ const SupabaseClient = {
         id: doc.id,
         professor_id: doc.professor_id,
         documento_path: doc.caminho,
-        chunk_texto: (doc.conteudo || "").slice(0, 400),
+        chunk_texto: (doc.texto_extraido || "").slice(0, 400),
         metadata: doc.metadata || {
           titulo: doc.titulo,
           tipo_arquivo: doc.tipo_arquivo,
@@ -405,6 +375,53 @@ const SupabaseClient = {
         e
       );
       return Storage.getHistorico();
+    }
+  },
+};
+
+  async salvarQuestaesEmLote(questoes) {
+    if (!this.init()) {
+      console.error("Supabase não inicializado, não é possível salvar questões em lote.");
+      // Fallback para salvar localmente, se aplicável
+      questoes.forEach(q => Storage.salvarQuestao(q));
+      return null;
+    }
+
+    try {
+      const professorId = await this.getProfessorId();
+      if (!professorId) throw new Error("Professor não autenticado.");
+
+      const registros = questoes.map(q => ({
+        professor_id: professorId,
+        enunciado: q.enunciado,
+        alternativas: q.alternativas, // Deve ser um JSONB
+        gabarito: q.gabarito,
+        justificativa: q.justificativa_gabarito || q.justificativa,
+        disciplina: q.disciplina,
+        dificuldade: q.dificuldade,
+        tipo_questao: q.tipo_questao,
+        // Adicione outros campos que possam vir do objeto 'q'
+      }));
+
+      const { data, error } = await this.client
+        .from('questoes_geradas')
+        .insert(registros)
+        .select();
+
+      if (error) throw error;
+
+      console.log(`✅ ${data.length} questões salvas no Supabase com sucesso.`);
+
+      // Opcional: Salvar também no localStorage
+      data.forEach(q => Storage.salvarQuestao(q));
+
+      return data;
+
+    } catch (e) {
+      console.error("❌ Erro ao salvar questões em lote no Supabase:", e);
+      // Fallback para salvar localmente
+      questoes.forEach(q => Storage.salvarQuestao(q));
+      return null;
     }
   },
 };
