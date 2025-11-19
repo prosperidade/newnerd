@@ -175,7 +175,7 @@ const Storage = {
 
     const a = document.createElement("a");
     a.href = url;
-    a.download = `moniton-historico-${
+    a.download = `newnerd-historico-${
       new Date().toISOString().split("T")[0]
     }.json`;
     a.click();

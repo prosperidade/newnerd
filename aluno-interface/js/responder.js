@@ -16,67 +16,71 @@ function voltarPainel() {
   window.location.href = "painel.html";
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-  const user = await verificarAuth();
-  if (!user) return;
+function initializeResponder() {
+  document.addEventListener("DOMContentLoaded", async () => {
+    const user = await verificarAuth();
+    if (!user) return;
 
-  // Preenche nome/email no topo
-  const alvo = document.getElementById("alunoNome");
-  if (alvo) alvo.textContent = user.email ?? "Aluno";
+    // Preenche nome/email no topo
+    const alvo = document.getElementById("alunoNome");
+    if (alvo) alvo.textContent = user.email ?? "Aluno";
 
-  // Busca perfil do aluno
-  const { data: perfil, error: perfErr } = await supabaseClient
-    .from("alunos")
-    .select("*")
-    .eq("email", user.email)
-    .single();
+    // Busca perfil do aluno
+    const { data: perfil, error: perfErr } = await supabaseClient
+      .from("alunos")
+      .select("*")
+      .eq("email", user.email)
+      .single();
 
-  if (perfErr || !perfil) {
-    console.error("Aluno não encontrado na tabela 'alunos':", perfErr);
-    alert("Seu usuário não está vinculado a um cadastro de aluno.");
-    return;
-  }
-  alunoPerfil = perfil;
+    if (perfErr || !perfil) {
+      console.error("Aluno não encontrado na tabela 'alunos':", perfErr);
+      alert("Seu usuário não está vinculado a um cadastro de aluno.");
+      return;
+    }
+    alunoPerfil = perfil;
 
-  // Carrega questão
-  const questaoId = getParam("questao_id");
-  if (!questaoId) {
-    alert("Questão não informada.");
-    return;
-  }
-  const { data: q, error: qErr } = await supabaseClient
-    .from("questoes_geradas")
-    .select("*")
-    .eq("id", questaoId)
-    .single();
+    // Carrega questão
+    const questaoId = getParam("questao_id");
+    if (!questaoId) {
+      alert("Questão não informada.");
+      return;
+    }
+    const { data: q, error: qErr } = await supabaseClient
+      .from("questoes_geradas")
+      .select("*")
+      .eq("id", questaoId)
+      .single();
 
-  if (qErr || !q) {
-    console.error("Erro ao carregar questão:", qErr);
-    alert("Não foi possível carregar a questão.");
-    return;
-  }
-  questao = q;
+    if (qErr || !q) {
+      console.error("Erro ao carregar questão:", qErr);
+      alert("Não foi possível carregar a questão.");
+      return;
+    }
+    questao = q;
 
-  // Preenche cabeçalho
-  setText("tipoQuestao", (questao.tipo_questao || "").replace("_", " "));
-  setText("disciplina", questao.disciplina || "");
-  setText("serie", questao.serie || "");
-  const enunEl = document.getElementById("enunciado");
-  if (enunEl) enunEl.textContent = questao.enunciado || "—";
+    // Preenche cabeçalho
+    setText("tipoQuestao", (questao.tipo_questao || "").replace("_", " "));
+    setText("disciplina", questao.disciplina || "");
+    setText("serie", questao.serie || "");
+    const enunEl = document.getElementById("enunciado");
+    if (enunEl) enunEl.textContent = questao.enunciado || "—";
 
-  // Monta opções
-  montarOpcoes(questao);
+    // Monta opções
+    montarOpcoes(questao);
 
-  // Cronômetro simples
-  inicioCronometro = Date.now();
-  startTimer("timer");
+    // Cronômetro simples
+    inicioCronometro = Date.now();
+    startTimer("timer");
 
-  // Submit
-  const form = document.getElementById("respostaForm");
-  if (form) {
-    form.addEventListener("submit", handleSubmit);
-  }
-});
+    // Submit
+    const form = document.getElementById("respostaForm");
+    if (form) {
+      form.addEventListener("submit", handleSubmit);
+    }
+  });
+}
+
+document.addEventListener("configReady", initializeResponder);
 
 function setText(id, text) {
   const el = document.getElementById(id);

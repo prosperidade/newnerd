@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Teste - Moniton</title>
+    <title>Teste - New Nerd</title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -64,7 +64,7 @@
     </style>
   </head>
   <body>
-    <h1>🧪 Teste do Sistema Moniton</h1>
+    <h1>🧪 Teste do Sistema New Nerd</h1>
 
     <div class="test-card">
       <h2>1. Verificação de Arquivos</h2>
@@ -91,7 +91,7 @@
 
     <script>
       // Configuração
-      const WEBHOOK_URL = "http://localhost:5678/webhook/moniton-webhook";
+      const WEBHOOK_URL = "http://localhost:5678/webhook/newnerd-webhook";
 
       // Verificar arquivos
       window.addEventListener("DOMContentLoaded", function () {
@@ -170,10 +170,10 @@
             tipo_questao: "multipla_escolha",
           };
 
-          localStorage.setItem("moniton_test", JSON.stringify(testData));
+          localStorage.setItem("newnerd_test", JSON.stringify(testData));
 
           // Testar leitura
-          const retrieved = JSON.parse(localStorage.getItem("moniton_test"));
+          const retrieved = JSON.parse(localStorage.getItem("newnerd_test"));
 
           if (retrieved.id === testData.id) {
             resultDiv.innerHTML = `
@@ -182,7 +182,7 @@
                     `;
 
             // Limpar teste
-            localStorage.removeItem("moniton_test");
+            localStorage.removeItem("newnerd_test");
           } else {
             throw new Error("Dados não correspondem");
           }

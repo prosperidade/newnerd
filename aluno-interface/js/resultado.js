@@ -11,25 +11,29 @@ function escapeHTML(s) {
     .replace(/"/g, "&quot;");
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-  // verificarAuth do auth.js — costuma ser assíncrono
-  alunoCtx = await verificarAuth();
-  if (!alunoCtx) return;
+function initializeResultado() {
+  document.addEventListener("DOMContentLoaded", async () => {
+    // verificarAuth do auth.js — costuma ser assíncrono
+    alunoCtx = await verificarAuth();
+    if (!alunoCtx) return;
 
-  const params = new URLSearchParams(window.location.search);
-  const respostaId = params.get("resposta_id");
+    const params = new URLSearchParams(window.location.search);
+    const respostaId = params.get("resposta_id");
 
-  if (!respostaId) {
-    el("resultadoCard").innerHTML = `
-      <div style="text-align:center;padding:40px;">
-        <p style="color:#f44336;font-size:18px;">❌ ID da resposta não informado.</p>
-        <button class="btn-submit" onclick="voltarPainel()" style="margin-top:20px;">Voltar</button>
-      </div>`;
-    return;
-  }
+    if (!respostaId) {
+      el("resultadoCard").innerHTML = `
+        <div style="text-align:center;padding:40px;">
+          <p style="color:#f44336;font-size:18px;">❌ ID da resposta não informado.</p>
+          <button class="btn-submit" onclick="voltarPainel()" style="margin-top:20px;">Voltar</button>
+        </div>`;
+      return;
+    }
 
-  await exibirResultado(respostaId);
-});
+    await exibirResultado(respostaId);
+  });
+}
+
+document.addEventListener("configReady", initializeResultado);
 
 async function exibirResultado(id) {
   try {

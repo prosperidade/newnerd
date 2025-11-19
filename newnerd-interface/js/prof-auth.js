@@ -1,21 +1,14 @@
 console.log("🔐 prof-auth.js carregado");
 
 let supa = null;
+let isConfigReady = false;
 
+// 1. A inicialização do Supabase agora depende da configuração
 function initProfessorSupabase() {
-  // já inicializado
-  if (supa) return supa;
+  if (supa) return supa; // Já inicializado
 
-  if (typeof window === "undefined") {
-    console.error("❌ Ambiente sem window.");
-    return null;
-  }
-  if (!window.CONFIG) {
-    console.error("❌ CONFIG não carregado. Verifique a ordem dos scripts.");
-    return null;
-  }
-  if (!window.supabase) {
-    console.error("❌ Supabase SDK não carregado.");
+  if (!isConfigReady || typeof window === "undefined" || !window.CONFIG || !window.supabase) {
+    console.error("❌ Pré-requisitos para inicializar o Supabase (prof-auth) não atendidos.");
     return null;
   }
 
@@ -27,6 +20,12 @@ function initProfessorSupabase() {
   console.log("✅ Supabase (prof-auth) inicializado.");
   return supa;
 }
+
+// 2. Ouvinte que ativa a inicialização
+document.addEventListener("configReady", () => {
+  isConfigReady = true;
+  initProfessorSupabase(); // Inicializa assim que a config estiver pronta
+});
 
 // -----------------------
 // Login do professor

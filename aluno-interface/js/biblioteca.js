@@ -795,21 +795,20 @@ class BibliotecaManager {
 // ========================================
 // INICIALIZAÇÃO
 // ========================================
-if (typeof window !== "undefined") {
-  window.bibliotecaManager = null;
-
-  // Aguardar DOM carregar
-  document.addEventListener("DOMContentLoaded", () => {
-    console.log("🚀 Inicializando Biblioteca Manager...");
+function initializeBiblioteca() {
+  if (typeof window !== "undefined") {
     window.bibliotecaManager = new BibliotecaManager();
-  });
 
-  // Função global para busca semântica (chamada pelo botão)
-  window.performSemanticSearch = () => {
-    if (window.bibliotecaManager) {
-      window.bibliotecaManager.performSemanticSearch();
-    } else {
-      console.error("❌ BibliotecaManager não inicializado");
-    }
-  };
+    // Função global para busca semântica (chamada pelo botão)
+    window.performSemanticSearch = () => {
+      if (window.bibliotecaManager) {
+        window.bibliotecaManager.performSemanticSearch();
+      } else {
+        console.error("❌ BibliotecaManager não inicializado");
+      }
+    };
+  }
 }
+
+// A biblioteca só inicia DEPOIS que a configuração estiver pronta.
+document.addEventListener("configReady", initializeBiblioteca);

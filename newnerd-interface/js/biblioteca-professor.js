@@ -878,8 +878,11 @@ class BibliotecaProfessor {
 /* ============================================================================
    BOOTSTRAP
 =========================================================================== */
-if (typeof window !== "undefined") {
-  document.addEventListener("DOMContentLoaded", () => {
+function initializeBiblioteca() {
+  if (typeof window !== "undefined") {
     window.bibliotecaProfessor = new BibliotecaProfessor();
-  });
+  }
 }
+
+// A biblioteca só inicia DEPOIS que a configuração estiver pronta.
+document.addEventListener("configReady", initializeBiblioteca);

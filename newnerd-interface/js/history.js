@@ -122,7 +122,8 @@ function clearHistory() {
       result.classList.remove("active");
     }
 
-    alert(CONFIG.MESSAGES.HISTORY_CLEARED);
+    const message = window.CONFIG?.MESSAGES?.HISTORY_CLEARED || "Histórico limpo com sucesso!";
+    alert(message);
   } else {
     alert("❌ Erro ao limpar histórico");
   }

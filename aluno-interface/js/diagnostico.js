@@ -615,7 +615,7 @@ function handleLogicChange(ev) {
 
 // ==================== Geração de questões (IA + fallback) ====================
 const WEBHOOK_GERAR_QUESTAO =
-  "http://localhost:5678/webhook/moniton-gerar-questao-diagnostico";
+  "http://localhost:5678/webhook/newnerd-gerar-questao-diagnostico";
 
 async function gerarQuestaoIA(area, nivel, faixa, seed = null) {
   try {

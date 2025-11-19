@@ -1,16 +1,20 @@
 let user, sessaoAtual, supabase;
 
-document.addEventListener("DOMContentLoaded", async () => {
-  user = await verificarAuth();
-  if (!user) return;
+function initializeChat() {
+  document.addEventListener("DOMContentLoaded", async () => {
+    user = await verificarAuth();
+    if (!user) return;
 
-  supabase = window.supabaseClient;
-  await iniciarSessao();
+    supabase = window.supabaseClient;
+    await iniciarSessao();
 
-  document.getElementById("inputMsg").addEventListener("keypress", (e) => {
-    if (e.key === "Enter") enviarMensagem();
+    document.getElementById("inputMsg").addEventListener("keypress", (e) => {
+      if (e.key === "Enter") enviarMensagem();
+    });
   });
-});
+}
+
+document.addEventListener("configReady", initializeChat);
 
 async function iniciarSessao() {
   // Buscar ou criar sessão ativa

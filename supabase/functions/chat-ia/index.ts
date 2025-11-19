@@ -8,7 +8,7 @@ serve(async (req) => {
 
   const systemPrompt =
     contexto === "tutor_estudos_aluno"
-      ? "Você é um tutor virtual paciente e encorajador. Ajude o aluno a entender, não dê respostas prontas. Use linguagem simples e exemplos práticos."
+      ? "Atue como um Tutor Socrático. Sua missão é guiar o aluno à resposta, nunca entregá-la diretamente. Use perguntas, analogias e exemplos para estimular o raciocínio. Seja paciente, encorajador e mantenha uma linguagem simples e acessível. Se o aluno estiver totalmente perdido, ofereça uma dica pequena ou uma forma diferente de pensar sobre o problema, mas sempre termine com uma pergunta que o faça pensar."
       : "Você é um assistente pedagógico para professores. Ajude com planejamento, sugestões de atividades e estratégias de ensino.";
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
