@@ -5,10 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Minha Biblioteca - NEW NERD</title>
 
-    <!-- CSS com dark mode -->
     <link rel="stylesheet" href="css/aluno.css" />
 
-    <!-- CSS específico da biblioteca -->
     <style>
       .biblioteca-container {
         max-width: 1400px;
@@ -526,33 +524,30 @@
     </style>
   </head>
   <body>
-    <!-- Navbar do aluno -->
     <nav class="navbar">
-      <div class="nav-container">
-        <h1 class="nav-title">Moniton - Biblioteca</h1>
-        <div class="nav-links">
-          <a href="painel.html">📊 Painel</a>
-          <a href="biblioteca.html" class="active">📚 Biblioteca</a>
-          <a href="diagnostico.html">🔍 Diagnóstico</a>
-          <button onclick="logout()" class="btn-logout">Sair</button>
+      <div class="nav-content">
+        <div style="display: flex; align-items: center; gap: 10px">
+          <h2>📚 Biblioteca</h2>
+        </div>
+        <div class="nav-user">
+          <button onclick="window.location.href='painel.html'" class="btn-back">
+            ← Voltar ao Painel
+          </button>
+          <button class="theme-toggle" id="themeToggle">🌓</button>
         </div>
       </div>
     </nav>
 
     <div class="biblioteca-container">
-      <!-- Header -->
       <div class="biblioteca-header">
-        <h1>📚 Minha Biblioteca de Estudos</h1>
+        <h1>Minha Biblioteca de Estudos</h1>
         <p>Organize e busque seus materiais com inteligência artificial</p>
       </div>
 
-      <!-- Main Grid -->
       <div class="biblioteca-grid">
-        <!-- Upload Section -->
         <div class="card upload-section">
           <h3 style="margin-bottom: 20px">📤 Adicionar Material</h3>
 
-          <!-- Drop Zone -->
           <div class="drop-zone" id="dropZone">
             <div class="drop-zone-icon">📁</div>
             <h3>Arraste seus arquivos aqui</h3>
@@ -565,11 +560,6 @@
               <span class="format-badge">PDF</span>
               <span class="format-badge">Word</span>
               <span class="format-badge">TXT</span>
-              <span class="format-badge">CSV</span>
-              <span class="format-badge">JSON</span>
-              <span class="format-badge">ZIP</span>
-              <span class="format-badge">Áudio</span>
-              <span class="format-badge">Vídeo</span>
             </div>
           </div>
           <input
@@ -580,7 +570,6 @@
             accept=".pdf,.docx,.txt,.csv,.json,.zip,.mp3,.mp4"
           />
 
-          <!-- File Queue -->
           <div id="uploadQueue" style="display: none">
             <h4 style="margin: 20px 0 10px">📋 Fila de Upload</h4>
             <div class="file-queue" id="fileQueue"></div>
@@ -594,15 +583,10 @@
             </button>
           </div>
 
-          <!-- Stats -->
           <div class="stats-grid">
             <div class="stat-item">
               <span class="stat-value" id="totalDocs">0</span>
               <div class="stat-label">Documentos</div>
-            </div>
-            <div class="stat-item">
-              <span class="stat-value" id="totalPages">0</span>
-              <div class="stat-label">Páginas</div>
             </div>
             <div class="stat-item">
               <span class="stat-value" id="totalSize">0MB</span>
@@ -611,11 +595,9 @@
           </div>
         </div>
 
-        <!-- Library Section -->
         <div class="card library-section">
           <h3 style="margin-bottom: 20px">📖 Seus Materiais</h3>
 
-          <!-- Search Bar -->
           <div class="search-bar">
             <input
               type="text"
@@ -626,7 +608,6 @@
             <span class="search-icon">🔍</span>
           </div>
 
-          <!-- Semantic Search -->
           <div class="semantic-search">
             <h4>🧠 Busca Inteligente</h4>
             <textarea
@@ -642,19 +623,13 @@
             </button>
           </div>
 
-          <!-- Filter Tabs -->
           <div class="filter-tabs">
             <span class="filter-tab active" data-type="all">Todos</span>
             <span class="filter-tab" data-type="pdf">📄 PDF</span>
             <span class="filter-tab" data-type="docx">📝 Word</span>
             <span class="filter-tab" data-type="txt">📃 Texto</span>
-            <span class="filter-tab" data-type="csv">📊 CSV</span>
-            <span class="filter-tab" data-type="json">🔧 JSON</span>
-            <span class="filter-tab" data-type="audio">🎵 Áudio</span>
-            <span class="filter-tab" data-type="video">🎥 Vídeo</span>
           </div>
 
-          <!-- Documents Grid -->
           <div class="documents-grid" id="documentsGrid">
             <div class="empty-state">
               <div class="empty-state-icon">🔭</div>
@@ -666,51 +641,27 @@
       </div>
     </div>
 
-    <!-- Botão Dark Mode -->
-    <button class="theme-toggle" onclick="toggleTheme()" title="Alternar tema">
-      🌙
-    </button>
+    <script src="js/config.local.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/biblioteca.js"></script>
 
-    <!-- Scripts -->
-    <script src="js/config.js" defer></script>
-    <script
-      src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
-      defer
-    ></script>
-    <script src="js/supabase-manager.js" defer></script>
-    <script src="js/auth.js" defer></script>
-    <script src="js/biblioteca.js" defer></script>
-
-    <!-- Script de controle de tema -->
     <script>
-      (function () {
-        const KEY = "moniton-theme";
-        const prefersDark =
-          window.matchMedia &&
-          window.matchMedia("(prefers-color-scheme: dark)").matches;
+      document.addEventListener("DOMContentLoaded", () => {
+        const themeBtn = document.getElementById("themeToggle");
+        const body = document.body;
 
-        function apply(theme) {
-          document.body.setAttribute("data-theme", theme);
-          const btn = document.querySelector(".theme-toggle");
-          if (btn) {
-            btn.textContent = theme === "dark" ? "☀️" : "🌙";
-          }
-        }
+        themeBtn.addEventListener("click", () => {
+          const novo =
+            body.getAttribute("data-theme") === "dark" ? "light" : "dark";
+          body.setAttribute("data-theme", novo);
+          localStorage.setItem("newnerd_theme", novo);
+        });
 
-        if (typeof window.toggleTheme !== "function") {
-          window.toggleTheme = function () {
-            const cur =
-              document.body.getAttribute("data-theme") ||
-              localStorage.getItem(KEY) ||
-              (prefersDark ? "dark" : "light");
-            const next = cur === "dark" ? "light" : "dark";
-            localStorage.setItem(KEY, next);
-            apply(next);
-          };
-        }
-
-        apply(localStorage.getItem(KEY) || (prefersDark ? "dark" : "light"));
-      })();
+        const salvo = localStorage.getItem("newnerd_theme");
+        if (salvo) body.setAttribute("data-theme", salvo);
+      });
     </script>
   </body>
 </html>

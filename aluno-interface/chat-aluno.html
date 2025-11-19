@@ -2,83 +2,172 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <title>Chat IA - NEW NERD</title>
+    <title>Chat Widget</title>
     <link rel="stylesheet" href="css/aluno.css" />
     <style>
+      /* RESET E BASE DO WIDGET */
+      body {
+        background: transparent;
+        padding: 0;
+        margin: 0;
+        overflow: hidden;
+        font-family: "Segoe UI", sans-serif;
+      }
+
       .chat-ia-container {
-        max-width: 900px;
-        margin: 20px auto;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
       }
+
       .chat-box {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        padding: 15px;
         background: var(--bg-card);
-        border-radius: 15px;
-        padding: 20px;
-        min-height: 500px;
       }
+
+      /* HEADER */
+      .widget-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid var(--border-color);
+        margin-bottom: 10px;
+      }
+
+      /* ÁREA DE MENSAGENS (Scroll) */
       .mensagens {
-        height: 400px;
+        flex: 1;
         overflow-y: auto;
-        margin-bottom: 20px;
+        padding-right: 5px;
+        margin-bottom: 10px;
+        display: flex;
+        flex-direction: column; /* Garante que fiquem empilhadas */
+        gap: 10px; /* Espaço entre mensagens */
       }
+
+      /* ===== BOLHAS DE MENSAGEM (O FIX) ===== */
       .msg {
-        margin: 10px 0;
-        padding: 12px;
-        border-radius: 10px;
-        max-width: 80%;
+        padding: 12px 16px;
+        border-radius: 15px;
+        max-width: 85%;
+        font-size: 15px;
+        line-height: 1.5;
+        word-wrap: break-word; /* Quebra texto longo */
+        position: relative;
       }
+
+      /* USUÁRIO (Direita + Azul) */
       .msg.usuario {
-        background: var(--primary-color);
+        align-self: flex-end; /* Flexbox joga pra direita */
+        background: var(--primary-color); /* Usa a cor do tema */
         color: white;
-        margin-left: auto;
+        border-bottom-right-radius: 2px; /* Charme visual */
+        box-shadow: 0 2px 5px rgba(102, 126, 234, 0.2);
       }
+
+      /* IA (Esquerda + Cinza) */
       .msg.ia {
+        align-self: flex-start; /* Flexbox joga pra esquerda */
         background: var(--bg-secondary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+        border-bottom-left-radius: 2px; /* Charme visual */
       }
+
+      /* MENSAGEM DE DIGITANDO... */
+      .msg.digitando {
+        background: transparent;
+        border: none;
+        color: var(--text-muted);
+        padding: 0;
+        margin-left: 10px;
+        font-style: italic;
+        font-size: 12px;
+      }
+
+      /* ÁREA DE INPUT (Mantendo o design robusto) */
       .input-area {
+        margin-top: auto;
         display: flex;
         gap: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border-color);
       }
+
       .input-msg {
         flex: 1;
-        padding: 12px;
-        border: 2px solid var(--border-color);
-        border-radius: 8px;
+        height: 55px;
+        padding: 0 15px;
+        border: 2px solid var(--primary-color);
+        border-radius: 12px;
+        font-weight: 700;
+        color: var(--text-primary);
+        background: var(--bg-secondary);
+        font-family: inherit;
+        outline: none;
+        font-size: 15px;
+      }
+
+      .input-msg:focus {
+        background: var(--bg-card);
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+      }
+
+      .btn {
+        height: 55px;
+        padding: 0 20px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-weight: 800;
+        border: none;
+        cursor: pointer;
+        transition: 0.2s;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      .btn:hover {
+        transform: translateY(-2px);
       }
     </style>
   </head>
   <body>
-    <nav class="navbar">
-      <div class="nav-content">
-        <h2>🤖 Assistente de Estudos</h2>
-        <button onclick="location.href='painel.html'" class="btn-back">
-          ← Voltar
-        </button>
-      </div>
-    </nav>
-
     <div class="chat-ia-container">
       <div class="chat-box">
-        <div id="mensagens" class="mensagens">
-          <div class="msg ia">
-            👋 Olá! Sou seu assistente de estudos. Como posso ajudar hoje?
+        <div class="widget-header">
+          <div style="font-size: 24px">🤖</div>
+          <div>
+            <h3 style="margin: 0; color: var(--primary-color)">New Nerd</h3>
+            <span style="font-size: 12px; color: var(--success-color)"
+              >● Online</span
+            >
           </div>
         </div>
+
+        <div id="mensagens" class="mensagens"></div>
+
         <div class="input-area">
           <input
             type="text"
             id="inputMsg"
             class="input-msg"
-            placeholder="Pergunte sobre suas dúvidas..."
+            placeholder="Digite sua dúvida..."
+            autocomplete="off"
           />
           <button onclick="enviarMensagem()" class="btn">Enviar</button>
         </div>
       </div>
     </div>
-    <script src="js/config.local.js"></script>
-    <script src="js/config.js"></script>
 
+    <script src="js/config.local.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/chat-ia-aluno.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   </body>
 </html>
