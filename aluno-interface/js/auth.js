@@ -1,16 +1,25 @@
 // aluno-interface/js/auth.js
 
-if (!window.supabase) {
-  console.error("Supabase CDN não carregado.");
-}
-
 // Variável global para perfil do aluno
 let usuarioAtual = null;
 
-document.addEventListener("DOMContentLoaded", () => {
+function initAuth() {
+  if (!window.supabaseClient) {
+    console.error("Supabase client não está pronto. O auth.js não pode inicializar.");
+    return;
+  }
+  console.log("Auth.js inicializado via configReady.");
   const loginForm = document.getElementById("loginForm");
   if (loginForm) loginForm.addEventListener("submit", handleLoginComMatricula);
-});
+}
+
+// Ouve o evento global para inicializar
+if (window.supabaseClient) {
+  initAuth();
+} else {
+  document.addEventListener("configReady", initAuth);
+}
+
 
 // --- LOGIN ---
 async function handleLoginComMatricula(e) {

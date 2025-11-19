@@ -10,25 +10,22 @@
 
 console.log("🔧 [1/5] supabase-manager.js INICIANDO...");
 
+// O cliente será obtido de window.supabaseClient, inicializado por um script central de config.
 let supabaseClient = null;
 let isManagerInitialized = false;
 
 function initializeSupabaseManager() {
-  if (isManagerInitialized) return;
+  if (isManagerInitialized || !window.supabaseClient) {
+    if(!window.supabaseClient) console.error("Supabase client global não encontrado!");
+    return;
+  }
 
-  const { createClient } = window.supabase;
-  console.log("🔧 [2/5] createClient:", typeof createClient);
-
-  const supabaseUrl = CONFIG.SUPABASE_URL;
-  const supabaseKey = CONFIG.SUPABASE_ANON_KEY;
-  console.log("🔧 [3/5] CONFIG carregado");
-
-  supabaseClient = createClient(supabaseUrl, supabaseKey);
-  console.log("🔧 [4/5] supabaseClient criado");
+  // Atribui o cliente global à variável local para uso nas funções abaixo
+  supabaseClient = window.supabaseClient;
 
   // Exporta as funções para o escopo global
   window.supabaseManager = {
-    supabaseClient,
+    supabaseClient, // Expõe o cliente para consistência
     uploadDocumento,
     processarDocumento,
     buscarDocumentos,
@@ -39,12 +36,17 @@ function initializeSupabaseManager() {
 
   isManagerInitialized = true;
   console.log(
-    "✅ supabase-manager.js CARREGADO!",
+    "✅ supabase-manager.js CARREGADO e sincronizado com cliente global!",
     Object.keys(window.supabaseManager)
   );
 }
 
-document.addEventListener("configReady", initializeSupabaseManager);
+// Garante que a inicialização ocorra apenas quando a configuração estiver pronta.
+if (window.supabaseClient) {
+  initializeSupabaseManager();
+} else {
+  document.addEventListener("configReady", initializeSupabaseManager);
+}
 
 // ============================================
 // FUNÇÕES DE UPLOAD E PROCESSAMENTO

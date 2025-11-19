@@ -48,10 +48,30 @@
 
     <div class="container">
       <div class="painel-header">
-        <h1>Contestações Enviadas</h1>
-        <p>Acompanhe o status das suas contestações</p>
+        <h1>Contestações</h1>
+        <p>Envie uma nova contestação ou acompanhe o status das enviadas</p>
       </div>
 
+      <!-- Formulário de Nova Contestação -->
+      <div class="card" style="margin-bottom: 30px;">
+        <h2>Nova Contestação</h2>
+        <form id="form-contestacao">
+          <div class="form-group">
+            <label for="select-questao">Selecione a Questão</label>
+            <select id="select-questao" required>
+              <option value="">Carregando questões...</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="texto-justificativa">Justificativa</label>
+            <textarea id="texto-justificativa" rows="5" placeholder="Explique por que você está contestando a nota ou o gabarito desta questão." required></textarea>
+          </div>
+          <button type="submit" class="btn">Enviar Contestação</button>
+        </form>
+        <div id="form-feedback" style="margin-top: 15px;"></div>
+      </div>
+
+      <h2 style="margin-top: 30px;">Histórico de Contestações</h2>
       <div id="contestacoes-list"></div>
     </div>
 
@@ -65,13 +85,91 @@
         window.location.href = "painel.html";
       }
 
-      document.addEventListener("DOMContentLoaded", () => {
-        carregarContestacoes();
-      });
-
-      async function carregarContestacoes() {
+      document.addEventListener("DOMContentLoaded", async () => {
         const user = await verificarAuth();
         if (!user) return;
+
+        await carregarQuestoesParaContestar(user.id);
+        await carregarContestacoes(user.id);
+
+        document.getElementById("form-contestacao").addEventListener("submit", (e) => {
+          e.preventDefault();
+          enviarContestacao(user.id);
+        });
+      });
+
+      async function carregarQuestoesParaContestar(alunoId) {
+        const select = document.getElementById("select-questao");
+        try {
+          const { data, error } = await supabaseClient
+            .from("respostas_alunos")
+            .select("id, questoes_geradas (id, enunciado)")
+            .eq("aluno_id", alunoId)
+            .order("created_at", { ascending: false })
+            .limit(50); // Limita às 50 mais recentes
+
+          if (error) throw error;
+
+          if (data.length === 0) {
+            select.innerHTML = '<option value="">Nenhuma questão respondida encontrada</option>';
+            return;
+          }
+
+          select.innerHTML = '<option value="">-- Selecione uma questão --</option>';
+          data.forEach(resposta => {
+            if (resposta.questoes_geradas) {
+              const option = document.createElement("option");
+              option.value = resposta.id;
+              option.textContent = `[${new Date(resposta.created_at).toLocaleDateString()}] ${resposta.questoes_geradas.enunciado.substring(0, 80)}...`;
+              select.appendChild(option);
+            }
+          });
+
+        } catch (err) {
+          console.error("Erro ao carregar questões para contestar:", err);
+          select.innerHTML = '<option value="">Erro ao carregar questões</option>';
+        }
+      }
+
+      async function enviarContestacao(alunoId) {
+          const respostaId = document.getElementById("select-questao").value;
+          const texto = document.getElementById("texto-justificativa").value;
+          const feedbackEl = document.getElementById("form-feedback");
+
+          if (!respostaId || !texto.trim()) {
+              feedbackEl.textContent = "Por favor, selecione uma questão e escreva sua justificativa.";
+              feedbackEl.style.color = "#c62828";
+              return;
+          }
+
+          try {
+              const { error } = await supabaseClient
+                  .from("contestacoes")
+                  .insert({
+                      aluno_id: alunoId,
+                      resposta_id: respostaId,
+                      texto_contestacao: texto,
+                      status: "pendente"
+                  });
+
+              if (error) throw error;
+
+              feedbackEl.textContent = "✅ Contestação enviada com sucesso!";
+              feedbackEl.style.color = "#2e7d32";
+              document.getElementById("form-contestacao").reset();
+
+              // Recarrega a lista
+              carregarContestacoes(alunoId);
+
+          } catch (err) {
+              console.error("Erro ao enviar contestação:", err);
+              feedbackEl.textContent = "❌ Erro ao enviar. Tente novamente.";
+              feedbackEl.style.color = "#c62828";
+          }
+      }
+
+      async function carregarContestacoes(userId) {
+        const user = { id: userId }; // Adaptação para a função já existente
 
         // Carregar nome do aluno pelo ID (tabela 'alunos')
         try {

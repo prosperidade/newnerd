@@ -47,56 +47,50 @@ class BibliotecaManager {
       totalDocs: document.getElementById("totalDocs"),
       totalSize: document.getElementById("totalSize"),
       // Drawer
-      drawer: document.getElementById("docDrawer"),
-      drawerContent: document.getElementById("drawerContent"),
-      closeDrawerBtn: document.getElementById("closeDrawer"),
+      drawerOverlay: document.getElementById("drawerOverlay"),
+      drawerPanel: document.getElementById("drawerPanel"),
+      drawerTitle: document.getElementById("drawerTitle"),
+      drawerBody: document.getElementById("drawerBody"),
+      drawerCloseBtn: document.getElementById("drawerCloseBtn"),
     };
   }
 
   setupEventListeners() {
     // Upload
     if (this.elements.dropZone && this.elements.fileInput) {
-      this.elements.dropZone.addEventListener("click", () =>
-        this.elements.fileInput.click()
-      );
-      this.elements.fileInput.addEventListener("change", (e) =>
-        this.addFilesToQueue(Array.from(e.target.files))
-      );
+      this.elements.dropZone.addEventListener("click", () => this.elements.fileInput.click());
+      this.elements.fileInput.addEventListener("change", (e) => this.addFilesToQueue(Array.from(e.target.files)));
 
       // Drag and drop visual
       this.elements.dropZone.addEventListener("dragover", (e) => {
         e.preventDefault();
-        this.elements.dropZone.style.borderColor = "var(--primary-color)";
+        this.elements.dropZone.classList.add("dragover");
       });
       this.elements.dropZone.addEventListener("dragleave", () => {
-        this.elements.dropZone.style.borderColor = "";
+        this.elements.dropZone.classList.remove("dragover");
       });
       this.elements.dropZone.addEventListener("drop", (e) => {
         e.preventDefault();
-        this.elements.dropZone.style.borderColor = "";
+        this.elements.dropZone.classList.remove("dragover");
         this.addFilesToQueue(Array.from(e.dataTransfer.files));
       });
     }
 
     if (this.elements.uploadAllBtn) {
-      this.elements.uploadAllBtn.addEventListener("click", () =>
-        this.uploadAllFiles()
-      );
+      this.elements.uploadAllBtn.addEventListener("click", () => this.uploadAllFiles());
     }
 
     // Busca
     if (this.elements.searchInput) {
-      this.elements.searchInput.addEventListener(
-        "input",
-        this.debounce((e) => this.handleSearch(e.target.value), 300)
-      );
+      this.elements.searchInput.addEventListener("input", this.debounce((e) => this.handleSearch(e.target.value), 300));
     }
 
     // Drawer
-    if (this.elements.closeDrawerBtn) {
-      this.elements.closeDrawerBtn.addEventListener("click", () =>
-        this.closeDrawer()
-      );
+    if (this.elements.drawerOverlay) {
+      this.elements.drawerOverlay.addEventListener("click", () => this.closeDrawer());
+    }
+    if (this.elements.drawerCloseBtn) {
+      this.elements.drawerCloseBtn.addEventListener("click", () => this.closeDrawer());
     }
   }
 
@@ -232,27 +226,47 @@ class BibliotecaManager {
               doc.similarity * 100
             ).toFixed(0)}% Relevante</span>`
           : "";
+        const docIcon = this.getIconForType(doc.tipo_arquivo);
         return `
-        <div class="document-card" onclick="window.bibliotecaManager.openDrawer('${
-          doc.caminho_arquivo
-        }', '${doc.tipo_arquivo}')">
-           ${score}
-           <div style="font-weight:bold; margin-bottom:5px;">${doc.titulo}</div>
-           <div style="font-size:0.8rem; color:gray;">${new Date(
-             doc.created_at || Date.now()
-           ).toLocaleDateString()}</div>
-           <button onclick="event.stopPropagation(); window.bibliotecaManager.deleteDocument('${
-             doc.id
-           }', '${
-          doc.caminho_arquivo
-        }')" style="margin-top:10px; padding:5px; border:none; background:none; cursor:pointer;">🗑️</button>
+        <div class="document-card" data-path="${doc.caminho_arquivo}">
+           <div class="document-type-icon">${docIcon}</div>
+           <div class.document-title">${this.escapeHtml(doc.titulo)}</div>
+           <div class="document-excerpt">
+             ${this.formatSize(doc.metadata?.size)}
+           </div>
+           <div class="document-meta">
+              <span class="meta-date">${new Date(doc.created_at || Date.now()).toLocaleDateString()}</span>
+              <div class="document-actions">
+                  <button class="action-btn delete-btn" data-id="${doc.id}" data-path="${doc.caminho_arquivo}">🗑️</button>
+              </div>
+           </div>
         </div>
       `;
       })
       .join("");
+
+      this.addDocumentCardEventListeners();
   }
 
-  // --- STATS (A função que faltava!) ---
+  addDocumentCardEventListeners() {
+      this.elements.documentsGrid.querySelectorAll('.document-card').forEach(card => {
+          card.addEventListener('click', () => {
+              const path = card.getAttribute('data-path');
+              this.openDrawer(path);
+          });
+      });
+
+      this.elements.documentsGrid.querySelectorAll('.delete-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const id = btn.getAttribute('data-id');
+              const path = btn.getAttribute('data-path');
+              this.deleteDocument(id, path);
+          });
+      });
+  }
+
+  // --- STATS ---
   updateStats() {
     if (this.elements.totalDocs)
       this.elements.totalDocs.textContent = this.documents.length;
@@ -261,8 +275,7 @@ class BibliotecaManager {
         (acc, doc) => acc + (doc.metadata?.size || 0),
         0
       );
-      this.elements.totalSize.textContent =
-        (size / (1024 * 1024)).toFixed(2) + " MB";
+      this.elements.totalSize.textContent = this.formatSize(size);
     }
   }
 
@@ -272,63 +285,66 @@ class BibliotecaManager {
     const query = this.elements.semanticSearchInput.value;
     if (!query) return;
 
-    // Substituindo 'window.supabaseManager' por chamada direta
-    const { data, error } = await this.supabase.rpc("buscar_biblioteca_aluno", {
-      query_text: query,
-      match_threshold: 0.7,
-      match_count: 5,
-    });
-
-    if (error) {
-      console.error(error);
-      alert("Erro na busca.");
-      return;
-    }
-
-    // Mapeia resultados para formato de documento
-    const results = data.map((r) => ({
-      id: r.doc_id,
-      titulo: r.titulo || "Trecho",
-      similarity: r.similarity,
-      caminho_arquivo: r.caminho_arquivo, // Precisa vir da RPC
-      created_at: null,
-    }));
-
-    this.displayDocuments(results);
+    // RPC a ser implementada no DB
+    alert("Busca semântica do aluno ainda não implementada.");
   }
 
-  // --- EMBEDDINGS (Mantido do seu código original) ---
+  // --- EMBEDDINGS ---
   async gerarEmbeddingsDocumento(documentoId, file) {
-    try {
-      const texto = await file.text();
-      // Lógica de chunking simplificada para não travar
-      // ... (Futuramente enviaremos para Gemini)
-      console.log("Log: Processando embeddings para", file.name);
-    } catch (e) {
-      console.error("Erro ao ler arquivo para embedding", e);
-    }
+    // Lógica futura
   }
 
   // --- DRAWER ---
-  async openDrawer(path, type) {
-    const { data } = await this.supabase.storage
-      .from(this.bucketName)
-      .createSignedUrl(path, 3600);
-    if (data?.signedUrl) {
-      let contentHTML = `<div style="text-align:center; padding:50px;"><a href="${data.signedUrl}" target="_blank" class="btn">Baixar Arquivo</a></div>`;
+  async openDrawer(path) {
+    try {
+      if (!path) return;
 
-      if (type && type.includes("pdf")) {
-        contentHTML = `<iframe src="${data.signedUrl}" style="width:100%; height:100%; border:none;"></iframe>`;
+      this.elements.drawerOverlay?.classList.add("active");
+      this.elements.drawerPanel?.classList.add("active");
+      this.elements.drawerBody.innerHTML = '<div class="loading-spinner"></div>';
+
+      const { data: signedUrlData, error: urlError } = await this.supabase.storage
+        .from(this.bucketName)
+        .createSignedUrl(path, 60); // 1 minuto de validade
+
+      if (urlError) throw urlError;
+      const signedUrl = signedUrlData.signedUrl;
+
+      const doc = this.documents.find(d => d.caminho_arquivo === path);
+      const title = doc?.titulo || path.split("/").pop();
+      const mime = doc?.tipo_arquivo || '';
+
+      this.elements.drawerTitle.textContent = this.escapeHtml(title);
+
+      const isText = mime.startsWith("text/") || /\.txt$/i.test(title) || /\.md$/i.test(title);
+      const isJson = mime.includes("json");
+
+      if (isText || isJson) {
+        const response = await fetch(signedUrl);
+        if (!response.ok) throw new Error('Falha ao buscar conteúdo do arquivo.');
+        const text = await response.text();
+        this.elements.drawerBody.innerHTML = `<pre>${this.escapeHtml(text)}</pre>`;
+      } else if (mime.includes("pdf")) {
+         this.elements.drawerBody.innerHTML = `<iframe src="${signedUrl}" style="width:100%; height:100%; border:none;"></iframe>`;
       }
-
-      this.elements.drawerContent.innerHTML = contentHTML;
-      this.elements.drawer.classList.add("active");
+      else {
+        this.elements.drawerBody.innerHTML = `
+          <div style="text-align:center; padding: 40px;">
+            <p>A pré-visualização para este tipo de arquivo não é suportada.</p>
+            <a href="${signedUrl}" target="_blank" class="btn">Abrir em Nova Aba / Baixar</a>
+          </div>
+        `;
+      }
+    } catch (e) {
+      console.error("Erro ao abrir o Drawer:", e);
+      this.elements.drawerBody.innerHTML = "<p>Ocorreu um erro ao carregar o arquivo.</p>";
     }
   }
 
   closeDrawer() {
-    this.elements.drawer.classList.remove("active");
-    this.elements.drawerContent.innerHTML = "";
+    this.elements.drawerOverlay?.classList.remove("active");
+    this.elements.drawerPanel?.classList.remove("active");
+    this.elements.drawerBody.innerHTML = "";
   }
 
   async deleteDocument(id, path) {
@@ -355,6 +371,34 @@ class BibliotecaManager {
       d.titulo.toLowerCase().includes(val.toLowerCase())
     );
     this.displayDocuments(filtered);
+  }
+
+  // --- UTILS ---
+
+  getIconForType(type) {
+    if (!type) return '📄';
+    if (type.includes('pdf')) return '📕';
+    if (type.includes('word')) return '📘';
+    if (type.includes('text')) return '📝';
+    if (type.includes('json')) return '📦';
+    return '📄';
+  }
+
+  formatSize(bytes) {
+    if (!bytes || bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+  }
+
+  escapeHtml(str) {
+    return (str || '')
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
   }
 }
 

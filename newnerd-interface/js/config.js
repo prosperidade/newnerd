@@ -153,57 +153,14 @@ const DIFICULDADES = ["fácil", "média", "difícil"];
 // =================================================================================
 // INICIALIZAÇÃO ASSÍNCRONA
 // Garantimos que o config local seja carregado ANTES de definirmos as configs
-// globais que podem depender dele (como a OPENAI_API_KEY).
+// globais e o cliente Supabase.
 // =================================================================================
 async function initializeConfig() {
-  await loadLocalConfig(); // Espera a tentativa de carregamento do config local
+  await loadLocalConfig(); // Espera a tentativa de carregamento
 
-  // As configurações são definidas APÓS a tentativa de carregamento
-  const CONFIG = {
-    ENV,
-
-    // ... (restante das configurações que já estavam definidas)
-    GENERATE_FUNCTION_URL:
-      "https://cxizjrdlkhhegzpzzmgl.supabase.co/functions/v1/generate-question",
-    WEBHOOK_URL:
-      "https://cxizjrdlkhhegzpzzmgl.supabase.co/functions/v1/generate-question",
-    REQUEST_TIMEOUT: 60000,
-    SUPABASE_URL: "https://cxizjrdlkhhegzpzzmgl.supabase.co",
-    SUPABASE_ANON_KEY:
-      "eyJhbGciOiJIJ1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN4aXpqcmRsa2hoZWd6cHp6bWdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0Mzk0OTIsImV4cCI6MjA3NTAxNTQ5Mn0.BUbNOWdjfweTHHZsJfTzyaq_qVxWiHM41Ug7X4ozUow",
-
-    // A chave da OpenAI agora busca `window.LOCAL_CONFIG` que foi carregado
-    OPENAI_API_KEY:
-      ENV === "dev" ? window.LOCAL_CONFIG?.OPENAI_API_KEY || null : null,
-
-    PROFESSOR_ID: ENV === "dev" ? LEGACY_DEV.PROFESSOR_ID : null,
-    TESTE_EMAIL: ENV === "dev" ? LEGACY_DEV.TESTE_EMAIL : null,
-    TESTE_SENHA: ENV === "dev" ? LEGACY_DEV.TESTE_SENHA : null,
-
-    EMBED_URL: "https://cxizjrdlkhhegzpzzmgl.functions.supabase.co/embed",
-    EMBED_MODE: "edge_first",
-
-    BUCKET_PROFESSOR: "newnerd_professores",
-    TABLE_ARQUIVOS_PROF: "arquivos_professor",
-    TABLE_PROFESSORES: "professores",
-
-    STORAGE_KEY: "newnerd_historico",
-    THEME_KEY: "newnerd_theme",
-    MAX_HISTORY_ITEMS: 100,
-
-    MESSAGES: {
-      GENERATING: "Gerando questão com IA...",
-      GENERATING_MULTIPLE: "Gerando {n} questões... Aguarde...",
-      SUCCESS: "✅ Questão gerada com sucesso!",
-      ERROR_GENERIC: "❌ Erro ao gerar questão. Tente novamente.",
-      ERROR_TIMEOUT:
-        "⏱️ Tempo esgotado. O servidor demorou muito para responder.",
-      ERROR_NETWORK: "🌐 Erro de conexão.",
-      ERROR_EMPTY: "❌ Resposta vazia do servidor.",
-      COPIED: "✅ Copiado para área de transferência!",
-      HISTORY_CLEARED: "🗑️ Histórico limpo com sucesso!",
-    },
-  };
+  // Atualiza a chave OpenAI no objeto CONFIG já existente
+  CONFIG.OPENAI_API_KEY =
+    ENV === "dev" ? window.LOCAL_CONFIG?.OPENAI_API_KEY || null : null;
 
   // Exporta as variáveis globais
   if (typeof window !== "undefined") {
@@ -212,13 +169,27 @@ async function initializeConfig() {
     window.DISCIPLINAS = DISCIPLINAS;
     window.SERIES = SERIES;
     window.DIFICULDADES = DIFICULDADES;
-    console.log("✅ Variáveis globais exportadas com sucesso!");
+
+    // INICIALIZA O CLIENTE SUPABASE AQUI
+    try {
+      const { createClient } = supabase;
+      window.supabaseClient = createClient(
+        CONFIG.SUPABASE_URL,
+        CONFIG.SUPABASE_ANON_KEY
+      );
+      console.log("✅ Supabase client inicializado com sucesso!");
+    } catch (e) {
+      console.error("❌ Erro ao inicializar o Supabase client:", e);
+      // Opcional: Adicionar UI de erro para o usuário
+    }
+
+    console.log("✅ Variáveis globais exportadas!");
   }
 
   console.log("✅ CONFIG carregado:", CONFIG.WEBHOOK_URL);
   console.log("🔥 CONFIG.JS CARREGADO COMPLETAMENTE!");
 
-  // Dispara um evento customizado para notificar que a configuração está pronta
+  // Dispara um evento customizado para notificar que a configuração e o cliente estão prontos
   document.dispatchEvent(new Event("configReady"));
 }
 
