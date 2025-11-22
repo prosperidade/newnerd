@@ -510,3 +510,6 @@ mais relatorios_desempenho, contestacoes, diagnosticos_alunos.
 
 se for logs / configuração / debug →
 config_sistema, logs_api, histórico de chat (chat_*, conversas, mensagens).
+
+
+

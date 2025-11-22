@@ -184,15 +184,6 @@ window.enviarMensagem = async function () {
 };
 
 async function chamarIAModeDev(mensagem) {
-  // Busca a chave (tenta local, depois config global)
-  const localKey =
-    (window.LOCAL_CONFIG && window.LOCAL_CONFIG.OPENAI_API_KEY) ||
-    (window.CONFIG && window.CONFIG.OPENAI_API_KEY);
-
-  if (!localKey) {
-    throw new Error("Chave API não configurada no config.local.js");
-  }
-
   // Histórico para contexto
   const { data: historico } = await supabase
     .from("chat_mensagens")
@@ -206,33 +197,29 @@ async function chamarIAModeDev(mensagem) {
     content: h.conteudo,
   }));
 
-  mensagensAPI.unshift({
-    role: "system",
-    content: "Você é o New Nerd, um tutor socrático. Use Markdown.",
-  });
-
+  // A mensagem atual já foi adicionada ao histórico? O código original adicionava aqui manualmente.
+  // O código original fazia: mensagensAPI.push({ role: "user", content: mensagem });
+  // Vamos manter o padrão.
   mensagensAPI.push({ role: "user", content: mensagem });
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${localKey}`,
+  // Chama a Edge Function em vez da OpenAI diretamente
+  const { data, error } = await supabase.functions.invoke("chat-ia", {
+    body: {
+      mensagens: mensagensAPI,
+      contexto: { papel: "tutor_estudos" },
     },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: mensagensAPI,
-      temperature: 0.7,
-    }),
   });
 
-  if (!response.ok) {
-    const errData = await response.json();
-    throw new Error(`OpenAI: ${errData.error?.message || response.statusText}`);
+  if (error) {
+    console.error("Erro na Edge Function:", error);
+    throw new Error("Erro ao comunicar com o assistente.");
   }
 
-  const data = await response.json();
-  return data.choices[0].message.content;
+  if (data.error) {
+    throw new Error(data.error);
+  }
+
+  return data.texto;
 }
 
 function adicionarMensagemUI(texto, remetente) {
