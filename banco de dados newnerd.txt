@@ -512,7 +512,7 @@ se for logs / configuração / debug →
 config_sistema, logs_api, histórico de chat (chat_*, conversas, mensagens).
 
 
-AIzaSyAx0qe6Gl-VGwQbWQ_b65PbyX-YZTQW48U
+[REMOVIDO POR SEGURANÇA]
 
-.\supabase.exe secrets set GOOGLE_API_KEY="AIzaSyAx0qe6Gl-VGwQbWQ_b65PbyX-YZTQW48U" --project-ref cxizjrdlkhhegzpzzmgl
+.\supabase.exe secrets set GOOGLE_API_KEY="[SUA_CHAVE_AQUI]" --project-ref cxizjrdlkhhegzpzzmgl
   

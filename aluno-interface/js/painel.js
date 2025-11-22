@@ -146,16 +146,8 @@ function atualizarEstatisticas() {
 }
 
 function abrirQuestao(questaoId) {
-  const respondida = respostas.find((r) => r.questao_id === questaoId);
-  if (respondida) {
-    window.location.href = `resultado.html?resposta_id=${encodeURIComponent(
-      respondida.id
-    )}`;
-  } else {
-    window.location.href = `responder.html?questao_id=${encodeURIComponent(
-      questaoId
-    )}`;
-  }
+  // Redireciona para a página unificada de atividades (SPA)
+  window.location.href = `questao.html?id=${encodeURIComponent(questaoId)}`;
 }
 
 function aplicarFiltros() {

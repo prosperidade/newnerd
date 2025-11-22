@@ -157,9 +157,14 @@ async function buscarDocumentos(alunoId, filtros = {}) {
 // ============================================
 
 /**
- * Gera embedding usando OpenAI (usa CONFIG.OPENAI_API_KEY)
+ * Gera embedding usando OpenAI
+ * ATENÇÃO: Esta função foi desativada temporariamente por motivos de segurança.
+ * Em breve será substituída por uma chamada segura ao backend.
  */
 async function gerarEmbedding(texto) {
+  console.warn("⚠️ gerarEmbedding: Função temporariamente indisponível via frontend por segurança.");
+  throw new Error("Função de embedding movida para o backend. Aguarde atualização.");
+  /*
   try {
     const response = await fetch("https://api.openai.com/v1/embeddings", {
       method: "POST",
@@ -186,6 +191,7 @@ async function gerarEmbedding(texto) {
     console.error("❌ Erro ao gerar embedding:", error);
     throw error;
   }
+  */
 }
 
 /**
