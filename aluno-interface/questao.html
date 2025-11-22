@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Atividades | New Nerd</title>
+    <link rel="stylesheet" href="css/aluno.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <nav class="navbar">
+      <div class="nav-content">
+        <div style="display: flex; align-items: center; gap: 10px">
+          <h2>🎓 Moniton</h2>
+        </div>
+        <div class="nav-user">
+          <span id="alunoNome">Carregando...</span>
+          <button class="btn-logout" onclick="logout()">Sair</button>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container">
+      <div id="view-lista" class="view-section active">
+        <div class="painel-header">
+          <h1>Minhas Atividades</h1>
+
+          <div class="top-nav-buttons">
+            <button
+              onclick="window.location.href='biblioteca.html'"
+              class="nav-btn btn-biblioteca"
+            >
+              📚 Acessar Biblioteca
+            </button>
+
+            <button
+              onclick="window.location.href='painel.html'"
+              class="nav-btn btn-painel"
+            >
+              🏠 Voltar ao Painel
+            </button>
+
+            <button
+              onclick="window.location.href='contestacoes.html'"
+              class="nav-btn btn-contestacao"
+            >
+              ⚠️ Contestações
+            </button>
+          </div>
+
+          <div class="stats-resumo">
+            <div class="stat-box">
+              <span class="stat-number" id="totalQuestoes">0</span>
+              <span class="stat-label">Disponíveis</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-number" id="totalRespondidas">0</span>
+              <span class="stat-label">Respondidas</span>
+            </div>
+            <div class="stat-box">
+              <span class="stat-number" id="mediaNotas">-</span>
+              <span class="stat-label">Média Geral</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="filtros-inline">
+          <select
+            id="filtroDisciplina"
+            class="form-select-premium"
+            onchange="aplicarFiltros()"
+          >
+            <option value="">Todas as Disciplinas</option>
+            <option value="Matemática">Matemática</option>
+            <option value="Português">Português</option>
+            <option value="Biologia">Biologia</option>
+            <option value="História">História</option>
+            <option value="Geografia">Geografia</option>
+            <option value="Ciências">Ciências</option>
+            <option value="Inglês">Inglês</option>
+            <option value="Filosofia">Filosofia</option>
+            <option value="Sociologia">Sociologia</option>
+          </select>
+
+          <select
+            id="filtroTipo"
+            class="form-select-premium"
+            onchange="aplicarFiltros()"
+          >
+            <option value="">Todos os Tipos</option>
+            <option value="multipla_escolha">Múltipla Escolha</option>
+            <option value="discursiva">Discursiva</option>
+            <option value="verdadeiro_falso">Verdadeiro/Falso</option>
+          </select>
+        </div>
+
+        <div class="white-box-container">
+          <div id="questoesGrid" class="questoes-grid">
+            <div
+              class="loading"
+              style="
+                grid-column: 1/-1;
+                text-align: center;
+                padding: 40px;
+                color: #666;
+              "
+            >
+              Carregando suas questões...
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="view-responder" class="view-section">
+        <div class="questao-ativa-container" style="margin-top: 20px">
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 20px;
+            "
+          >
+            <button class="btn-back" onclick="trocarView('view-lista')">
+              ← Cancelar
+            </button>
+            <div class="timer-badge" id="timer">00:00</div>
+          </div>
+
+          <div style="margin-bottom: 15px">
+            <span class="badge badge-disciplina" id="q-disciplina">...</span>
+            <span class="badge badge-serie" id="q-serie">...</span>
+          </div>
+
+          <div
+            id="q-enunciado"
+            style="
+              font-size: 1.2rem;
+              line-height: 1.6;
+              margin-bottom: 30px;
+              color: #333;
+              font-weight: 500;
+              padding: 20px;
+              background: #f9f9f9;
+              border-radius: 8px;
+            "
+          ></div>
+
+          <form id="form-resposta">
+            <div id="q-opcoes"></div>
+            <button
+              type="submit"
+              class="btn-login"
+              style="margin-top: 30px; height: 50px; font-size: 1.1rem"
+            >
+              Confirmar Resposta
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div id="view-resultado" class="view-section">
+        <div class="resultado-container">
+          <h1 id="res-msg" class="res-main-title">Resposta Registrada!</h1>
+
+          <div class="res-highlight-row">
+            <div id="res-emoji" class="res-icon-big">📚</div>
+            <div id="res-nota" class="res-nota-big">0.0</div>
+          </div>
+
+          <div class="white-card-content">
+            <div class="feedback-header">
+              <span style="font-size: 1.5rem">🤖</span>
+              <h3>Feedback da IA</h3>
+            </div>
+            <p id="res-feedback">Carregando análise...</p>
+
+            <div id="box-gabarito" class="gabarito-box" style="display: none">
+              <h4>✅ Gabarito Oficial</h4>
+              <p
+                id="res-gabarito-texto"
+                style="font-weight: bold; color: #1b5e20; margin-bottom: 5px"
+              ></p>
+              <p
+                id="res-justificativa"
+                style="font-size: 0.9rem; color: #555; margin: 0"
+              ></p>
+            </div>
+
+            <div
+              id="box-melhoria"
+              class="improvement-box"
+              style="display: none"
+            >
+              <h4>📈 Plano de Melhoria</h4>
+              <p id="res-melhoria" style="margin: 0; color: #5d4037"></p>
+            </div>
+
+            <div class="res-actions">
+              <button
+                class="nav-btn btn-biblioteca"
+                onclick="trocarView('view-lista'); carregarDados();"
+              >
+                🔙 Voltar para Lista
+              </button>
+              <button class="nav-btn btn-contestacao" id="btn-contestar">
+                ⚠️ Contestar Resultado
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/config.local.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/questao.js"></script>
+  </body>
+</html>

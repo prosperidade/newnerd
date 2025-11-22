@@ -1,106 +1,44 @@
-// aluno-interface/js/auth.js
+// js/auth.js - VERSÃO DE RECUPERAÇÃO (Lógica Simplificada)
 
-// Variável global para perfil do aluno
-let usuarioAtual = null;
-
-function initAuth() {
-  if (!window.supabaseClient) {
-    console.error("Supabase client não está pronto. O auth.js não pode inicializar.");
-    return;
-  }
-  console.log("Auth.js inicializado via configReady.");
-  const loginForm = document.getElementById("loginForm");
-  if (loginForm) loginForm.addEventListener("submit", handleLoginComMatricula);
-}
-
-// Ouve o evento global para inicializar
-if (window.supabaseClient) {
-  initAuth();
-} else {
-  document.addEventListener("configReady", initAuth);
-}
-
-
-// --- LOGIN ---
-async function handleLoginComMatricula(e) {
-  e.preventDefault();
-  const matricula = document.getElementById("matricula")?.value?.trim();
-  const senha = document.getElementById("senha")?.value ?? "";
-  const errorEl = document.getElementById("error");
-
-  if (errorEl) {
-    errorEl.textContent = "";
-    errorEl.classList.remove("active");
-  }
-
-  try {
-    if (!matricula || !senha) throw new Error("Preencha matrícula e senha.");
-
-    // 1. Busca email pela matrícula (RPC do banco)
-    const { data: email, error: rpcError } = await window.supabaseClient.rpc(
-      "get_email_by_matricula",
-      { matricula_param: matricula }
-    );
-
-    if (rpcError || !email) throw new Error("Matrícula não encontrada.");
-
-    // 2. Login no Auth
-    const { error: authError } =
-      await window.supabaseClient.auth.signInWithPassword({
-        email,
-        password: senha,
-      });
-    if (authError) throw authError;
-
-    window.location.href = "painel.html";
-  } catch (err) {
-    console.error("Erro login:", err);
-    if (errorEl) {
-      errorEl.textContent = "Dados incorretos.";
-      errorEl.classList.add("active");
-    }
-  }
-}
-
-// --- VERIFICAÇÃO E PERFIL ---
 async function verificarAuth() {
+  // 1. Verifica se o Supabase foi carregado
+  if (!window.supabaseClient) {
+    console.error(
+      "Supabase não carregou. Verifique sua internet ou o config.js"
+    );
+    return null;
+  }
+
+  // 2. Pega a sessão atual do usuário
   const {
     data: { session },
+    error,
   } = await window.supabaseClient.auth.getSession();
 
-  if (!session) {
-    // Se não tiver sessão e não estiver na tela de login, chuta pra fora
+  if (error || !session) {
+    // Se não tem sessão e não está no login, manda pro login
     if (!window.location.pathname.includes("login.html")) {
       window.location.href = "login.html";
     }
     return null;
   }
 
-  // Se já carregamos o perfil antes, retorna ele (cache simples)
-  if (usuarioAtual) return usuarioAtual;
-
-  // Busca dados detalhados na tabela 'alunos'
-  const { data: aluno, error } = await window.supabaseClient
-    .from("alunos")
-    .select("*")
-    .eq("id", session.user.id) // O ID do Auth é o mesmo da tabela alunos
-    .single();
-
-  if (error || !aluno) {
-    console.warn("Usuário logado sem cadastro na tabela de alunos.");
-    return session.user; // Retorna ao menos o user do Auth
-  }
-
-  usuarioAtual = aluno;
-  return aluno;
+  // 3. Retorna os dados básicos do usuário (vincular tabelas depois)
+  // Isso garante que o sistema não trave se o perfil 'alunos' estiver incompleto
+  return {
+    id: session.user.id,
+    email: session.user.email,
+    // Tenta pegar metadados se existirem, senão usa o email como nome
+    nome: session.user.user_metadata?.nome || session.user.email,
+  };
 }
 
+// Função simples de Logout
 async function logout() {
   await window.supabaseClient.auth.signOut();
   window.location.href = "login.html";
 }
 
-// Exporta globalmente
+// Inicializa verificadores globais
 window.verificarAuth = verificarAuth;
 window.logout = logout;
-window.handleLoginComMatricula = handleLoginComMatricula;

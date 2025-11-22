@@ -1,19 +1,23 @@
 <!DOCTYPE html>
-< lang="pt-BR">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Login - Aluno</title>
+    <title>Login - Aluno | New Nerd</title>
     <link rel="stylesheet" href="css/aluno.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
   </head>
-  < class="login-page">
+  <body class="login-page">
     <noscript>Ative o JavaScript para usar o New Nerd.</noscript>
 
     <div class="login-container">
       <div class="login-card">
         <div class="login-header">
-          <h1>🎓 New Nerd Aluno</h1>
-          <p>Acesse sua conta para responder questões</p>
+          <h1>🎓 New Nerd</h1>
+          <p>Área do Aluno</p>
         </div>
 
         <form id="loginForm" novalidate>
@@ -22,7 +26,7 @@
             <input
               type="text"
               id="matricula"
-              placeholder="Digite sua matrícula"
+              placeholder="Ex: 2024001"
               required
               autocomplete="username"
             />
@@ -33,7 +37,7 @@
             <input
               type="password"
               id="senha"
-              placeholder="Digite sua senha"
+              placeholder="••••••••"
               required
               autocomplete="current-password"
             />
@@ -42,16 +46,100 @@
           <button type="submit" class="btn-login">Entrar</button>
         </form>
 
-        <div class="error" id="error"></div>
+        <div
+          class="error"
+          id="error"
+          style="display: none; color: red; margin-top: 10px"
+        ></div>
+
+        <div class="login-footer">
+          <p>Esqueceu a senha? Procure a secretaria.</p>
+        </div>
       </div>
     </div>
 
-   <script src="js/config.local.js"></script>
+    <script src="js/config.local.js"></script>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <script src="js/config.js"></script>
 
     <script src="js/auth.js"></script>
+
+    <script>
+      // Aguarda o config.js dizer que o Supabase está pronto
+      function iniciarLogin() {
+        console.log("✅ Login: Sistema pronto.");
+
+        const loginForm = document.getElementById("loginForm");
+        const errorEl = document.getElementById("error");
+
+        if (loginForm) {
+          loginForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const btn = document.querySelector(".btn-login");
+            const matricula = document.getElementById("matricula").value.trim();
+            const senha = document.getElementById("senha").value.trim();
+
+            // Feedback visual
+            errorEl.style.display = "none";
+            btn.disabled = true;
+            btn.textContent = "Entrando...";
+
+            try {
+              if (!window.supabaseClient)
+                throw new Error("Erro de conexão. Recarregue a página.");
+              if (!matricula || !senha)
+                throw new Error("Preencha matrícula e senha.");
+
+              // 1. Busca email pela matrícula (RPC do Banco)
+              // Essa é a lógica vital do seu sistema: Matrícula -> Email
+              const { data: email, error: rpcError } =
+                await window.supabaseClient.rpc("get_email_by_matricula", {
+                  matricula_param: matricula,
+                });
+
+              if (rpcError || !email) {
+                console.error("Erro RPC:", rpcError);
+                throw new Error("Matrícula não encontrada.");
+              }
+
+              // 2. Login no Auth do Supabase
+              const { error: authError } =
+                await window.supabaseClient.auth.signInWithPassword({
+                  email: email,
+                  password: senha,
+                });
+
+              if (authError) throw authError;
+
+              // SUCESSO
+              console.log("Login realizado. Redirecionando...");
+              window.location.href = "painel.html";
+            } catch (err) {
+              console.error("Erro no login:", err);
+              btn.disabled = false;
+              btn.textContent = "Entrar";
+
+              // Tratamento de erro amigável
+              let msg = err.message;
+              if (msg.includes("Invalid login")) msg = "Senha incorreta.";
+
+              errorEl.textContent = msg;
+              errorEl.style.display = "block";
+            }
+          });
+        }
+      }
+
+      // Se o Supabase já estiver carregado (cache), inicia direto
+      if (window.supabaseClient) {
+        iniciarLogin();
+      } else {
+        // Senão, espera o evento do seu config.js
+        document.addEventListener("configReady", iniciarLogin);
+      }
+    </script>
   </body>
 </html>

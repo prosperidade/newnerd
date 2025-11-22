@@ -1,288 +1,104 @@
-// ========================================
-// GERENCIAMENTO DO HISTÓRICO
-// ========================================
+// js/history.js
 
-/**
- * Carrega e exibe o histórico
- */
-function loadHistory() {
-  const historicoDiv = document.getElementById("historico");
-  if (!historicoDiv) return;
+async function loadHistoryFromSupabase() {
+  if (typeof window.SupabaseClient === "undefined") return;
 
-  const historico = Storage.getHistorico();
+  const container = document.getElementById("historico");
+  if (container)
+    container.innerHTML =
+      '<div style="text-align:center; padding:20px;">Carregando...</div>';
 
-  if (historico.length === 0) {
-    historicoDiv.innerHTML = `
-      <div style="text-align: center; color: #999; padding: 20px;">
-        Nenhuma questão gerada ainda
-      </div>
-    `;
+  try {
+    const {
+      data: { user },
+    } = await window.supabase.auth.getUser(); // Acesso direto ao auth wrapper
+    const profId =
+      user?.id || CONFIG.PROFESSOR_ID || "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
+
+    const questoes = await SupabaseClient.carregarQuestoes(profId);
+
+    displayHistoryFromData(questoes);
+  } catch (err) {
+    console.error("Erro histórico:", err);
+    if (container)
+      container.innerHTML =
+        '<p style="color:red; text-align:center">Erro ao carregar.</p>';
+  }
+}
+
+function displayHistoryFromData(lista) {
+  const container = document.getElementById("historico");
+  if (!container) return;
+
+  if (!lista || lista.length === 0) {
+    container.innerHTML =
+      '<div style="text-align:center; color:#999; padding:20px;">Sem histórico.</div>';
     return;
   }
 
   let html = "";
 
-  historico.forEach((questao, index) => {
-    const tipo = QUESTION_TYPES[questao.tipo_questao] || questao.tipo_questao;
-    const disciplina = questao.disciplina || "Geral";
-    const preview = (questao.enunciado || "").substring(0, 80) + "...";
-    const data = questao.data_criacao || "Sem data";
+  lista.forEach((q) => {
+    const tipo = (q.tipo || q.tipo_questao || "").replace(/_/g, " ");
+    const disc = q.disciplina || "Geral";
+    const serie = q.serie || "";
+    const texto = q.enunciado || "Sem texto...";
+    const data = new Date(q.created_at).toLocaleDateString("pt-BR");
 
+    // AQUI ESTÁ O CLICK QUE LEVA PARA O DISPLAY PRINCIPAL
+    // Precisamos passar o ID e buscar os dados completos ou passar o objeto se serializável
+    // Vamos buscar pelo ID para garantir dados frescos
     html += `
-      <div class="history-item" onclick="loadQuestionFromHistory('${
-        questao.id
-      }')">
+      <div class="history-card" onclick="carregarDoHistorico('${q.id}')">
         <div class="history-header">
-          <span class="history-badge">${tipo}</span>
-          <span class="history-date">${data}</span>
+           <span class="history-badge" style="background:#e3f2fd; color:#1565c0">${tipo}</span>
+           <span class="history-badge" style="background:#f3e5f5; color:#7b1fa2">${disc}</span>
         </div>
-        <div class="history-preview">${preview}</div>
-        <div class="history-meta">
-          <span>${disciplina}</span>
-          ${questao.serie ? `<span>• ${questao.serie}</span>` : ""}
-          ${questao.dificuldade ? `<span>• ${questao.dificuldade}</span>` : ""}
-        </div>
-        <div class="history-actions">
-          <button class="btn-icon" onclick="deleteQuestion(event, '${
-            questao.id
-          }')" title="Excluir">
-            🗑️
-          </button>
+        <div class="history-preview">${texto}</div>
+        <div class="history-footer">
+           <span>📅 ${data} - ${serie}</span>
+           <button class="btn-hist-action" onclick="excluirDoHistorico(event, '${q.id}')">🗑️</button>
         </div>
       </div>
     `;
   });
 
-  historicoDiv.innerHTML = html;
-  console.log(`📚 Histórico carregado: ${historico.length} questões`);
+  container.innerHTML = html;
 }
 
-/**
- * Carrega uma questão do histórico
- */
-function loadQuestionFromHistory(questionId) {
-  const questao = Storage.getQuestaoById(questionId);
-  if (!questao) {
-    alert("❌ Questão não encontrada");
-    return;
+// Funções auxiliares globais para o onclick
+window.carregarDoHistorico = async function (id) {
+  // Busca dados completos
+  const { data } = await window.supabase
+    .from("questoes_geradas")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (data) {
+    // Normaliza
+    if (!data.tipo_questao) data.tipo_questao = data.tipo;
+    // Exibe
+    displayQuestion(data);
   }
+};
 
-  currentQuestion = questao;
-  window.currentQuestion = questao;
+window.excluirDoHistorico = async function (e, id) {
+  e.stopPropagation();
+  if (!confirm("Apagar?")) return;
+  await SupabaseClient.deletarQuestao(id);
+  loadHistoryFromSupabase();
+};
 
-  displayQuestion(questao);
-
-  // Scroll para o topo
-  window.scrollTo({ top: 0, behavior: "smooth" });
-
-  console.log("📖 Questão carregada do histórico:", questionId);
-}
-
-/**
- * Deleta uma questão específica
- */
-function deleteQuestion(event, questionId) {
-  // Prevenir propagação para não abrir a questão
-  if (event) {
-    event.stopPropagation();
+window.clearHistory = async function () {
+  if (confirm("Limpar tudo?")) {
+    // Implementar lógica de limpar tudo via Supabase se necessário
+    alert("Lógica de limpar tudo deve ser implementada no SupabaseClient.");
   }
+};
 
-  if (!confirm("🗑️ Tem certeza que deseja excluir esta questão?")) {
-    return;
-  }
-
-  const success = Storage.removerQuestao(questionId);
-
-  if (success) {
-    loadHistory();
-    updateDashboard();
-    alert("✅ Questão excluída com sucesso!");
-  } else {
-    alert("❌ Erro ao excluir questão");
-  }
-}
-
-/**
- * Limpa todo o histórico
- */
-function clearHistory() {
-  if (!confirm("🗑️ Tem certeza que deseja limpar todo o histórico?")) {
-    return;
-  }
-
-  const success = Storage.limparHistorico();
-
-  if (success) {
-    loadHistory();
-    updateDashboard();
-
-    // Limpar resultado atual
-    const result = document.getElementById("result");
-    if (result) {
-      result.classList.remove("active");
-    }
-
-    const message = window.CONFIG?.MESSAGES?.HISTORY_CLEARED || "Histórico limpo com sucesso!";
-    alert(message);
-  } else {
-    alert("❌ Erro ao limpar histórico");
-  }
-}
-
-/**
- * Aplica filtros ao histórico
- */
-function applyFilters() {
-  const filterTipo = document.getElementById("filterTipo")?.value || "";
-  const filterDisciplina =
-    document.getElementById("filterDisciplina")?.value || "";
-  const filterData = document.getElementById("filterData")?.value || "";
-
-  let historico = Storage.getHistorico();
-
-  // Filtrar por tipo
-  if (filterTipo) {
-    historico = historico.filter((q) => q.tipo_questao === filterTipo);
-  }
-
-  // Filtrar por disciplina
-  if (filterDisciplina) {
-    historico = historico.filter((q) => q.disciplina === filterDisciplina);
-  }
-
-  // Filtrar por data
-  if (filterData) {
-    const agora = new Date();
-    let dataLimite;
-
-    if (filterData === "hoje") {
-      dataLimite = new Date(agora.setHours(0, 0, 0, 0));
-    } else if (filterData === "semana") {
-      dataLimite = new Date(agora.setDate(agora.getDate() - 7));
-    } else if (filterData === "mes") {
-      dataLimite = new Date(agora.setMonth(agora.getMonth() - 1));
-    }
-
-    if (dataLimite) {
-      historico = historico.filter((q) => {
-        const dataQuestao = new Date(q.timestamp);
-        return dataQuestao >= dataLimite;
-      });
-    }
-  }
-
-  // Exibir histórico filtrado
-  displayFilteredHistory(historico);
-
-  console.log("🔍 Filtros aplicados. Resultados:", historico.length);
-}
-
-/**
- * Exibe histórico filtrado
- */
-function displayFilteredHistory(historico) {
-  const historicoDiv = document.getElementById("historico");
-  if (!historicoDiv) return;
-
-  if (historico.length === 0) {
-    historicoDiv.innerHTML = `
-      <div style="text-align: center; color: #999; padding: 20px;">
-        Nenhuma questão encontrada com esses filtros
-      </div>
-    `;
-    return;
-  }
-
-  let html = "";
-
-  historico.forEach((questao) => {
-    const tipo = QUESTION_TYPES[questao.tipo_questao] || questao.tipo_questao;
-    const disciplina = questao.disciplina || "Geral";
-    const preview = (questao.enunciado || "").substring(0, 80) + "...";
-    const data = questao.data_criacao || "Sem data";
-
-    html += `
-      <div class="history-item" onclick="loadQuestionFromHistory('${
-        questao.id
-      }')">
-        <div class="history-header">
-          <span class="history-badge">${tipo}</span>
-          <span class="history-date">${data}</span>
-        </div>
-        <div class="history-preview">${preview}</div>
-        <div class="history-meta">
-          <span>${disciplina}</span>
-          ${questao.serie ? `<span>• ${questao.serie}</span>` : ""}
-          ${questao.dificuldade ? `<span>• ${questao.dificuldade}</span>` : ""}
-        </div>
-        <div class="history-actions">
-          <button class="btn-icon" onclick="deleteQuestion(event, '${
-            questao.id
-          }')" title="Excluir">
-            🗑️
-          </button>
-        </div>
-      </div>
-    `;
-  });
-
-  historicoDiv.innerHTML = html;
-}
-
-/**
- * Limpa todos os filtros
- */
-function clearFilters() {
-  const filterTipo = document.getElementById("filterTipo");
-  const filterDisciplina = document.getElementById("filterDisciplina");
-  const filterData = document.getElementById("filterData");
-
-  if (filterTipo) filterTipo.value = "";
-  if (filterDisciplina) filterDisciplina.value = "";
-  if (filterData) filterData.value = "";
-
-  loadHistory();
-  console.log("🧹 Filtros limpos");
-}
-
-/**
- * Busca questões por texto
- */
-function searchQuestions() {
-  const searchInput = document.getElementById("searchInput");
-  if (!searchInput) return;
-
-  const termo = searchInput.value.toLowerCase().trim();
-
-  if (!termo) {
-    loadHistory();
-    return;
-  }
-
-  const historico = Storage.getHistorico();
-  const resultados = historico.filter((q) => {
-    const enunciado = (q.enunciado || "").toLowerCase();
-    const disciplina = (q.disciplina || "").toLowerCase();
-    const tipo = (q.tipo_questao || "").toLowerCase();
-
-    return (
-      enunciado.includes(termo) ||
-      disciplina.includes(termo) ||
-      tipo.includes(termo)
-    );
-  });
-
-  displayFilteredHistory(resultados);
-  console.log(`🔍 Busca por "${termo}": ${resultados.length} resultados`);
-}
-
-// Disponibilizar funções globalmente
+// Exporta
 if (typeof window !== "undefined") {
-  window.loadHistory = loadHistory;
-  window.loadQuestionFromHistory = loadQuestionFromHistory;
-  window.deleteQuestion = deleteQuestion;
-  window.clearHistory = clearHistory;
-  window.applyFilters = applyFilters;
-  window.clearFilters = clearFilters;
-  window.searchQuestions = searchQuestions;
+  window.loadHistoryFromSupabase = loadHistoryFromSupabase;
+  window.displayHistoryFromData = displayHistoryFromData;
 }

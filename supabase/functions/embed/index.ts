@@ -1,259 +1,137 @@
-// @ts-nocheck
-/// <reference lib="deno.ns" />
-/// <reference lib="dom" />
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+// supabase/functions/process-file/index.ts (or embed/index.ts)
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
-// =====================================================
-// Edge Function: /embed - CORRIGIDA
-// ✅ Validação robusta de embeddings
-// ✅ Logs detalhados para debug
-// ✅ Tratamento de erros melhorado
-// =====================================================
+console.log("🚀 Function process-file (Google Gemini) started!");
 
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const MODEL = "text-embedding-3-small"; // 1536 dims
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
 
-const ALLOWED_ORIGINS = new Set<string>([
-  "http://127.0.0.1:5500",
-  "http://localhost:5500",
-  "http://localhost:3000",
-  "http://localhost:5173",
-  "http://localhost",
-  "*",
-]);
-
-function corsHeaders(origin: string | null) {
-  const o =
-    origin && (ALLOWED_ORIGINS.has("*") || ALLOWED_ORIGINS.has(origin))
-      ? origin
-      : "*";
-  return {
-    "Access-Control-Allow-Origin": o,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers":
-      "Content-Type, Authorization, x-client-info, apikey",
-    "Access-Control-Max-Age": "86400",
-  };
-}
-
-Deno.serve(async (req: Request): Promise<Response> => {
-  const origin = req.headers.get("Origin");
-
-  // Preflight
+serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders(origin) });
-  }
-
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Use POST" }), {
-      status: 405,
-      headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
-    });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    if (!OPENAI_API_KEY || !SUPABASE_URL || !SERVICE_ROLE) {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const googleKey = Deno.env.get("GOOGLE_API_KEY");
+
+    if (!supabaseUrl || !supabaseKey || !googleKey) {
+      throw new Error(
+        "Missing environment variables (SUPABASE_URL, SERVICE_ROLE_KEY, GOOGLE_API_KEY)."
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const bodyText = await req.text();
+    if (!bodyText) throw new Error("Empty request body.");
+
+    const { document_id, table_name, bucket_name } = JSON.parse(bodyText);
+
+    if (!document_id || !table_name || !bucket_name) {
+      throw new Error(
+        "Missing required fields: document_id, table_name, bucket_name"
+      );
+    }
+
+    console.log(`📄 Processing Doc ID: ${document_id} in ${table_name}`);
+
+    // 1. Get Document Metadata
+    const { data: doc, error: dbErr } = await supabase
+      .from(table_name)
+      .select("*")
+      .eq("id", document_id)
+      .single();
+
+    if (dbErr || !doc) throw new Error(`Document not found: ${dbErr?.message}`);
+
+    const path = doc.caminho_arquivo || doc.caminho;
+    if (!path) throw new Error("File path missing in database record.");
+
+    // 2. Download File
+    const { data: fileData, error: dlErr } = await supabase.storage
+      .from(bucket_name)
+      .download(path);
+
+    if (dlErr) throw new Error(`Storage download error: ${dlErr.message}`);
+
+    // 3. Extract Text (Simple extraction for now)
+    const textContent = await fileData.text();
+    // Limit to 8000 chars to be safe with limits, remove extra spaces
+    const cleanText = textContent.slice(0, 8000).replace(/\s+/g, " ").trim();
+
+    if (cleanText.length < 10) {
+      console.log("⚠️ Text too short. Skipping embedding.");
+      await supabase
+        .from(table_name)
+        .update({
+          status_processamento: "ignored", // Aluno
+          status: "ready", // Professor
+        })
+        .eq("id", document_id);
+
       return new Response(
-        JSON.stringify({
-          error:
-            "OPENAI_API_KEY / SUPABASE_URL / SERVICE_ROLE não configurados",
-        }),
+        JSON.stringify({ success: true, message: "Ignored (short text)" }),
         {
-          status: 500,
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders(origin),
-          },
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
     }
 
-    const body = await req.json();
-    console.log("📦 Body recebido:", JSON.stringify(body, null, 2));
-
-    // Normaliza entrada
-    const professor_id = body?.professor_id || body?.owner_id || null;
-    const origem = body?.origem ?? body?.owner_type ?? "prof_biblioteca";
-    const origem_id = body?.origem_id ?? body?.documento_id ?? null;
-
-    let chunks: Array<{ texto: string; metadata?: any }> = [];
-
-    if (Array.isArray(body?.chunks) && body.chunks.length > 0) {
-      // Formato (A) - array de chunks
-      chunks = body.chunks
-        .map((c: any) => ({
-          texto: String(c?.texto ?? "").slice(0, 12000),
-          metadata: c?.metadata ?? {},
-        }))
-        .filter((c: any) => c.texto && c.texto.trim().length > 0);
-    } else if (
-      typeof body?.content === "string" &&
-      body.content.trim().length > 0
-    ) {
-      // Formato (B) - texto único
-      chunks = [
-        {
-          texto: String(body.content).slice(0, 12000),
-          metadata: body?.metadata ?? {},
-        },
-      ];
-    }
-
-    console.log("📝 Chunks processados:", chunks.length);
-
-    // 🔧 CORREÇÃO: Validação mais rigorosa
-    if (!professor_id) {
-      return new Response(
-        JSON.stringify({
-          error: "Campo obrigatório: professor_id",
-        }),
-        {
-          status: 400,
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders(origin),
-          },
-        }
-      );
-    }
-
-    if (chunks.length === 0) {
-      return new Response(
-        JSON.stringify({
-          error:
-            "Nenhum texto válido para gerar embeddings. Forneça chunks[] ou content.",
-        }),
-        {
-          status: 400,
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders(origin),
-          },
-        }
-      );
-    }
-
-    // 1) Gera embeddings
-    console.log("🧠 Gerando embeddings para", chunks.length, "chunk(s)...");
-    const inputs = chunks.map((c) => c.texto);
-
-    const oai = await fetch("https://api.openai.com/v1/embeddings", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({ model: MODEL, input: inputs }),
-    });
-
-    if (!oai.ok) {
-      const details = await oai.text();
-      console.error("❌ Erro OpenAI:", details);
-      return new Response(JSON.stringify({ error: "Erro OpenAI", details }), {
-        status: 502,
-        headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
-      });
-    }
-
-    const { data } = await oai.json();
-
-    if (!data?.length) {
-      console.error("❌ Nenhum embedding retornado pela OpenAI");
-      return new Response(
-        JSON.stringify({ error: "Nenhum embedding retornado" }),
-        {
-          status: 500,
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders(origin),
-          },
-        }
-      );
-    }
-
-    console.log("✅ Embeddings gerados:", data.length);
-    console.log(
-      "📊 Dimensões do primeiro embedding:",
-      data[0].embedding.length
-    );
-
-    // 🔧 CORREÇÃO: Validação do embedding
-    for (let i = 0; i < data.length; i++) {
-      if (!data[i].embedding || !Array.isArray(data[i].embedding)) {
-        console.error("❌ Embedding inválido no índice", i);
-        return new Response(
-          JSON.stringify({ error: `Embedding inválido no índice ${i}` }),
-          {
-            status: 500,
-            headers: {
-              "Content-Type": "application/json",
-              ...corsHeaders(origin),
-            },
-          }
-        );
-      }
-    }
-
-    // 2) Prepara linhas para insert
-    const rows = chunks.map((c, i) => ({
-      professor_id,
-      origem,
-      origem_id,
-      chunk_texto: c.texto,
-      embedding: data[i].embedding, // pgvector aceita array direto
-      metadata: {
-        ...c.metadata,
-        embedding_model: MODEL,
-        embedding_dims: data[i].embedding.length,
-        generated_at: new Date().toISOString(),
-      },
-    }));
-
-    console.log("💾 Inserindo", rows.length, "linha(s) no Supabase...");
-
-    // 3) Insert no Supabase
-    const resp = await fetch(`${SUPABASE_URL}/rest/v1/professor_embeddings`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SERVICE_ROLE,
-        Authorization: `Bearer ${SERVICE_ROLE}`,
-        Prefer: "return=representation",
-      },
-      body: JSON.stringify(rows),
-    });
-
-    if (!resp.ok) {
-      const details = await resp.text();
-      console.error("❌ Erro Supabase:", details);
-      return new Response(JSON.stringify({ error: "Erro Supabase", details }), {
-        status: 502,
-        headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
-      });
-    }
-
-    const inserted = await resp.json();
-    console.log("✅ Linhas inseridas:", inserted?.length ?? 0);
-
-    // 🔧 CORREÇÃO: Retorna IDs dos embeddings criados
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        count: inserted?.length ?? 0,
-        embeddings_ids: inserted?.map((row: any) => row.id) ?? [],
-      }),
+    // 4. Generate Embedding (Google Gemini)
+    console.log("🧠 Calling Google Gemini API...");
+    const embeddingResp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${googleKey}`,
       {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "models/text-embedding-004",
+          content: { parts: [{ text: cleanText }] },
+        }),
       }
     );
-  } catch (e) {
-    console.error("❌ Erro geral:", e);
-    return new Response(JSON.stringify({ error: String(e?.message || e) }), {
+
+    if (!embeddingResp.ok) {
+      const errTxt = await embeddingResp.text();
+      throw new Error(`Google API Error: ${errTxt}`);
+    }
+
+    const embeddingData = await embeddingResp.json();
+    const vector = embeddingData.embedding.values; // 768 dimensions
+
+    // 5. Save to Database
+    console.log("💾 Saving vector...");
+    const updateData = {
+      embedding: vector,
+      texto_extraido: cleanText,
+      status_processamento: "completed", // Aluno status
+      status: "ready", // Professor status
+    };
+
+    const { error: updateErr } = await supabase
+      .from(table_name)
+      .update(updateData)
+      .eq("id", document_id);
+
+    if (updateErr)
+      throw new Error(`Database update error: ${updateErr.message}`);
+
+    console.log("✅ Success!");
+    return new Response(JSON.stringify({ success: true }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (err: any) {
+    const msg = err.message || String(err);
+    console.error("❌ FATAL ERROR:", msg);
+    return new Response(JSON.stringify({ error: msg }), {
       status: 500,
-      headers: { "Content-Type": "application/json", ...corsHeaders(origin) },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

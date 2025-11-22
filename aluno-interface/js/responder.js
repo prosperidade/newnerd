@@ -1,232 +1,223 @@
-// ====================================================================
-// RESPONDER.JS - Carrega questão, registra resposta e envia p/ n8n
-// Depende de: window.supabase (CDN), CONFIG, supabaseClient (auth.js)
-// ====================================================================
+// js/responder.js - Lógica de Resposta (Blindada)
 
 let alunoPerfil = null;
-let questao = null;
+let questaoAtual = null;
 let inicioCronometro = null;
+let timerInterval = null;
 
-function getParam(name) {
-  const url = new URL(window.location.href);
-  return url.searchParams.get(name);
-}
+// Função principal de inicialização
+async function initResponder() {
+  console.log("🚀 Iniciando responder.js...");
 
-function voltarPainel() {
-  window.location.href = "painel.html";
-}
-
-function initializeResponder() {
-  document.addEventListener("DOMContentLoaded", async () => {
-    const user = await verificarAuth();
-    if (!user) return;
-
-    // Preenche nome/email no topo
-    const alvo = document.getElementById("alunoNome");
-    if (alvo) alvo.textContent = user.email ?? "Aluno";
-
-    // Busca perfil do aluno
-    const { data: perfil, error: perfErr } = await supabaseClient
-      .from("alunos")
-      .select("*")
-      .eq("email", user.email)
-      .single();
-
-    if (perfErr || !perfil) {
-      console.error("Aluno não encontrado na tabela 'alunos':", perfErr);
-      alert("Seu usuário não está vinculado a um cadastro de aluno.");
-      return;
-    }
-    alunoPerfil = perfil;
-
-    // Carrega questão
-    const questaoId = getParam("questao_id");
-    if (!questaoId) {
-      alert("Questão não informada.");
-      return;
-    }
-    const { data: q, error: qErr } = await supabaseClient
-      .from("questoes_geradas")
-      .select("*")
-      .eq("id", questaoId)
-      .single();
-
-    if (qErr || !q) {
-      console.error("Erro ao carregar questão:", qErr);
-      alert("Não foi possível carregar a questão.");
-      return;
-    }
-    questao = q;
-
-    // Preenche cabeçalho
-    setText("tipoQuestao", (questao.tipo_questao || "").replace("_", " "));
-    setText("disciplina", questao.disciplina || "");
-    setText("serie", questao.serie || "");
-    const enunEl = document.getElementById("enunciado");
-    if (enunEl) enunEl.textContent = questao.enunciado || "—";
-
-    // Monta opções
-    montarOpcoes(questao);
-
-    // Cronômetro simples
-    inicioCronometro = Date.now();
-    startTimer("timer");
-
-    // Submit
-    const form = document.getElementById("respostaForm");
-    if (form) {
-      form.addEventListener("submit", handleSubmit);
-    }
-  });
-}
-
-document.addEventListener("configReady", initializeResponder);
-
-function setText(id, text) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = text;
-}
-
-function montarOpcoes(q) {
-  const cont = document.getElementById("opcoes");
-  if (!cont) return;
-  cont.innerHTML = "";
-
-  const tipo = (q.tipo_questao || "").toLowerCase();
-
-  // tenta achar alternativas em vários campos possíveis
-  let alternativas =
-    q.alternativas || q.opcoes || q.opcoes_json || q.alternativas_json || [];
-
-  if (typeof alternativas === "string") {
-    try {
-      alternativas = JSON.parse(alternativas);
-    } catch {
-      alternativas = alternativas
-        .split("\n")
-        .map((s) => s.trim())
-        .filter(Boolean);
-    }
-  }
-
-  if (tipo.includes("multipla")) {
-    if (!Array.isArray(alternativas) || alternativas.length === 0) {
-      // fallback: campo único
-      cont.innerHTML = `<textarea id="resp_discursiva" class="input" placeholder="Digite sua resposta..."></textarea>`;
-      return;
-    }
-    cont.innerHTML = alternativas
-      .map(
-        (opt, i) => `
-        <label class="option-modern">
-          <input type="radio" name="resp_opcao" value="${escapeHtml(
-            String(opt)
-          )}">
-          <span class="radio-custom"></span>
-          <span class="option-text">${escapeHtml(String(opt))}</span>
-        </label>`
-      )
-      .join("");
-  } else if (tipo.includes("verdadeiro") || tipo.includes("falso")) {
-    cont.innerHTML = `
-      <label class="option-modern">
-        <input type="radio" name="resp_opcao" value="Verdadeiro">
-        <span class="radio-custom"></span>
-        <span class="option-text">Verdadeiro</span>
-      </label>
-      <label class="option-modern">
-        <input type="radio" name="resp_opcao" value="Falso">
-        <span class="radio-custom"></span>
-        <span class="option-text">Falso</span>
-      </label>`;
-  } else if (tipo.includes("associacao")) {
-    // placeholder simples (customizar depois)
-    cont.innerHTML = `<textarea id="resp_discursiva" class="input" placeholder="Descreva as associações..."></textarea>`;
-  } else {
-    // discursiva / default
-    cont.innerHTML = `<textarea id="resp_discursiva" class="input" placeholder="Digite sua resposta..."></textarea>`;
-  }
-}
-
-async function handleSubmit(e) {
-  e.preventDefault();
-
-  const btn = document.querySelector(".btn-submit");
-  if (btn) btn.disabled = true;
-
-  const tempoSeg = Math.max(
-    1,
-    Math.round((Date.now() - (inicioCronometro || Date.now())) / 1000)
-  );
-
-  // coleta resposta
-  const sel = document.querySelector('input[name="resp_opcao"]:checked');
-  const txt = document.getElementById("resp_discursiva");
-  const respostaValor = sel ? sel.value : (txt && txt.value) || "";
-
-  if (!respostaValor) {
-    alert("Por favor, selecione ou escreva uma resposta.");
-    if (btn) btn.disabled = false;
+  // 1. Verifica Auth
+  const user = await verificarAuth();
+  if (!user) {
+    console.warn("Usuário não autenticado. Redirecionando...");
+    // O próprio verificarAuth já redireciona, mas por segurança:
+    // window.location.href = "login.html";
     return;
   }
 
-  const payload = {
-    aluno_id: alunoPerfil.id,
-    aluno_email: alunoPerfil.email,
-    questao_id: questao.id,
-    tipo_questao: questao.tipo_questao,
-    resposta: respostaValor,
-    tempo_segundos: tempoSeg,
-  };
+  // Preenche nome no topo
+  const nomeEl = document.getElementById("alunoNome");
+  if (nomeEl) nomeEl.textContent = user.nome || user.email;
+  alunoPerfil = user;
 
+  // 2. Pega ID da URL
+  const params = new URLSearchParams(window.location.search);
+  const questaoId = params.get("questao_id");
+
+  if (!questaoId) {
+    alert("Erro: Nenhuma questão selecionada.");
+    window.location.href = "painel.html";
+    return;
+  }
+
+  // 3. Busca a questão no banco
+  await carregarQuestao(questaoId);
+}
+
+// Espera o Config avisar que o Supabase está pronto
+if (window.supabaseClient) {
+  initResponder();
+} else {
+  document.addEventListener("configReady", initResponder);
+}
+
+async function carregarQuestao(id) {
   try {
-    // Envia para o n8n (corrigir CORS no seu webhook se necessário)
-    const resp = await fetch(CONFIG.WEBHOOK_CORRECAO, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const { data: questao, error } = await window.supabaseClient
+      .from("questoes_geradas")
+      .select("*")
+      .eq("id", id)
+      .single();
 
-    if (!resp.ok) throw new Error("Falha ao enviar para o corretor.");
-    const out = await resp.json();
+    if (error || !questao) throw new Error("Questão não encontrada.");
 
-    // Esperado: { resposta_id: "<uuid>" }
-    const respostaId = out?.resposta_id || out?.id;
-    if (respostaId) {
-      window.location.href = `resultado.html?resposta_id=${respostaId}`;
-      return;
+    questaoAtual = questao;
+    renderizarTela(questao);
+
+    // Inicia cronômetro
+    inicioCronometro = Date.now();
+    startTimer("timer");
+
+    // Ativa o formulário
+    const form = document.getElementById("respostaForm");
+    if (form) {
+      form.onsubmit = (e) => {
+        e.preventDefault();
+        enviarResposta();
+      };
     }
-
-    // Se não vier id, tenta ao menos direcionar ao painel
-    alert("Resposta enviada. Aguarde a correção.");
-    voltarPainel();
   } catch (err) {
-    console.error("Erro ao enviar resposta:", err);
-    alert("Não foi possível enviar sua resposta. Tente novamente.");
-    if (btn) btn.disabled = false;
+    console.error("Erro ao carregar:", err);
+    document.getElementById("enunciado").innerHTML = `
+      <p style="color:red; text-align:center;">Erro ao carregar questão.<br>Tente voltar ao painel.</p>
+    `;
   }
 }
 
-// Utilidades
-function escapeHtml(s) {
-  return s
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+function renderizarTela(q) {
+  // Badges
+  setText(
+    "tipoQuestao",
+    (q.tipo_questao || "Questão").replace(/_/g, " ").toUpperCase()
+  );
+  setText("disciplina", q.disciplina || "");
+  setText("serie", q.serie || "");
+
+  // Enunciado
+  const enunEl = document.getElementById("enunciado");
+  if (enunEl) enunEl.textContent = q.enunciado;
+
+  // Opções
+  montarOpcoes(q);
+}
+
+function montarOpcoes(q) {
+  const container = document.getElementById("opcoes");
+  container.innerHTML = "";
+
+  let alternativas = [];
+  // Tenta parsear JSON se for string, ou usa direto se for array
+  try {
+    if (Array.isArray(q.alternativas)) alternativas = q.alternativas;
+    else if (typeof q.alternativas === "string")
+      alternativas = JSON.parse(q.alternativas);
+    else if (q.opcoes) alternativas = q.opcoes; // Legado
+  } catch (e) {
+    // Se falhar o JSON, tenta quebrar por linhas se for string
+    if (typeof q.alternativas === "string")
+      alternativas = q.alternativas.split("\n");
+  }
+
+  const tipo = (q.tipo_questao || "").toLowerCase();
+
+  // Lógica de renderização
+  if (tipo.includes("multipla") && alternativas.length > 0) {
+    alternativas.forEach((opt) => {
+      const div = document.createElement("div");
+      div.className = "option-modern";
+      // Tratamento para aspas dentro do texto
+      const safeOpt = String(opt).replace(/"/g, "&quot;");
+
+      div.innerHTML = `
+        <label style="display:flex; align-items:center; width:100%; cursor:pointer;">
+          <input type="radio" name="resposta" value="${safeOpt}">
+          <span class="radio-custom"></span>
+          <span class="option-text" style="margin-left:10px;">${opt}</span>
+        </label>
+      `;
+      container.appendChild(div);
+    });
+  } else if (tipo.includes("verdadeiro") || tipo.includes("falso")) {
+    // V ou F
+    ["Verdadeiro", "Falso"].forEach((val) => {
+      const div = document.createElement("div");
+      div.className = "option-modern";
+      div.innerHTML = `
+        <label style="display:flex; align-items:center; width:100%; cursor:pointer;">
+          <input type="radio" name="resposta" value="${val}">
+          <span class="radio-custom"></span>
+          <span class="option-text" style="margin-left:10px;">${val}</span>
+        </label>
+      `;
+      container.appendChild(div);
+    });
+  } else {
+    // Discursiva
+    container.innerHTML = `
+      <textarea id="resposta_texto" class="form-textarea" 
+      placeholder="Digite sua resposta aqui..." style="width:100%; min-height:150px;"></textarea>
+    `;
+  }
+}
+
+async function enviarResposta() {
+  const btn = document.getElementById("btnEnviar");
+  btn.disabled = true;
+  btn.textContent = "Enviando...";
+
+  if (timerInterval) clearInterval(timerInterval);
+  const tempoGasto = Math.round((Date.now() - inicioCronometro) / 1000);
+
+  // Captura resposta
+  let respostaFinal = "";
+  const radio = document.querySelector('input[name="resposta"]:checked');
+  const texto = document.getElementById("resposta_texto");
+
+  if (radio) respostaFinal = radio.value;
+  else if (texto) respostaFinal = texto.value;
+
+  if (!respostaFinal) {
+    alert("Por favor, responda a questão.");
+    btn.disabled = false;
+    btn.textContent = "Enviar Resposta";
+    return;
+  }
+
+  try {
+    const payload = {
+      aluno_id: alunoPerfil.id,
+      questao_id: questaoAtual.id,
+      resposta_alternativa: radio ? respostaFinal : null,
+      resposta_texto: radio ? respostaFinal : respostaFinal, // Salva nos dois por garantia
+      tempo_segundos: tempoGasto,
+      status_correcao: "pendente",
+    };
+
+    const { data, error } = await window.supabaseClient
+      .from("respostas_alunos")
+      .insert(payload)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Sucesso
+    window.location.href = `resultado.html?resposta_id=${data.id}`;
+  } catch (err) {
+    console.error("Erro ao enviar:", err);
+    alert("Erro ao enviar resposta. Tente novamente.");
+    btn.disabled = false;
+    btn.textContent = "Enviar Resposta";
+  }
 }
 
 function startTimer(id) {
   const el = document.getElementById(id);
-  if (!el) return;
   const start = Date.now();
-  const it = setInterval(() => {
-    const sec = Math.floor((Date.now() - start) / 1000);
-    const min = Math.floor(sec / 60)
+  timerInterval = setInterval(() => {
+    const totalSec = Math.floor((Date.now() - start) / 1000);
+    const m = Math.floor(totalSec / 60)
       .toString()
       .padStart(2, "0");
-    const s = (sec % 60).toString().padStart(2, "0");
-    el.textContent = `⏱️ ${min}:${s}`;
+    const s = (totalSec % 60).toString().padStart(2, "0");
+    if (el) el.textContent = `⏱️ ${m}:${s}`;
   }, 1000);
+}
+
+function setText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
 }
