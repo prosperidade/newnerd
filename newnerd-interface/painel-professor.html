@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Painel do Professor | New Nerd</title>
+    <link rel="stylesheet" href="css/style.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* Ajustes específicos do painel professor */
+      :root {
+        --primary-color: #4facfe;
+        --primary-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+      }
+      body {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        min-height: 100vh;
+      }
+      .action-card {
+        min-height: 180px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="navbar">
+      <div class="nav-content">
+        <div style="display: flex; align-items: center; gap: 10px">
+          <h2>👨‍🏫 New Nerd Docente</h2>
+        </div>
+        <div class="nav-user">
+          <span id="profNome">Carregando...</span>
+          <button class="btn-logout" onclick="logout()">Sair</button>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container">
+      <div class="painel-header">
+        <h1 id="saudacao">Olá, Professor!</h1>
+        <p style="color: var(--text-secondary)">
+          Gerencie suas turmas e conteúdos em um só lugar.
+        </p>
+
+        <div class="stats-resumo">
+          <div class="stat-box">
+            <span class="stat-number" id="statQuestoes">0</span>
+            <span class="stat-label">Questões Geradas</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-number" id="statTurmas">3</span>
+            <span class="stat-label">Turmas Ativas</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-number" id="statAlunos">120</span>
+            <span class="stat-label">Alunos Totais</span>
+          </div>
+        </div>
+      </div>
+
+      <div
+        class="content-box"
+        style="
+          background: transparent;
+          border: none;
+          box-shadow: none;
+          padding: 0;
+        "
+      >
+        <h3
+          class="section-title"
+          style="
+            color: white;
+            text-align: left;
+            margin-bottom: 20px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          "
+        >
+          Ferramentas de Ensino
+        </h3>
+
+        <div class="questoes-grid">
+          <div class="action-card" onclick="window.location.href='index.html'">
+            <div class="action-icon">⚡</div>
+            <h3>Gerador IA</h3>
+            <p>Crie provas e atividades em segundos.</p>
+          </div>
+
+          <div
+            class="action-card"
+            onclick="window.location.href='biblioteca-professor.html'"
+          >
+            <div class="action-icon">📚</div>
+            <h3>Minha Biblioteca</h3>
+            <p>Gerencie seus PDFs e materiais.</p>
+          </div>
+
+          <div
+            class="action-card"
+            onclick="alert('Em breve: Notas e Desempenho.')"
+          >
+            <div class="action-icon">📊</div>
+            <h3>Desempenho</h3>
+            <p>Acompanhe notas e contestações.</p>
+          </div>
+
+          <div class="action-card" onclick="alert('Em breve: Chat com IA.')">
+            <div class="action-icon">🤖</div>
+            <h3>Assistente IA</h3>
+            <p>Ajuda para planos de aula.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/config.local.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/painel-professor.js"></script>
+  </body>
+</html>

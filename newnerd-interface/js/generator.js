@@ -1,7 +1,7 @@
-// js/generator.js - Renderização corrigida
+// js/generator.js - CORRIGIDO PARA V/F E ASSOCIAÇÃO
 
 const Generator = {
-  // ... (mantenha generateOne, generateMultiple e buildParams iguais) ...
+  // --- Lógica de Geração (Mantida intacta) ---
   async generateOne(params, variacaoIndex = 0) {
     const endpoint = CONFIG.GENERATE_FUNCTION_URL || CONFIG.WEBHOOK_URL;
     const controller = new AbortController();
@@ -9,6 +9,7 @@ const Generator = {
       () => controller.abort(),
       CONFIG.REQUEST_TIMEOUT
     );
+
     try {
       const response = await fetch(endpoint, {
         method: "POST",
@@ -21,10 +22,14 @@ const Generator = {
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
+
       if (!response.ok) throw new Error("Erro na IA");
+
       let data = await response.json();
       if (data.questoes) data = data.questoes[0];
+      // Normalização de segurança
       if (!data.tipo_questao) data.tipo_questao = params.tipo || "discursiva";
+
       return data;
     } catch (error) {
       throw error;
@@ -35,8 +40,11 @@ const Generator = {
     const questoes = [];
     for (let i = 0; i < qtd; i++) {
       try {
-        questoes.push(await this.generateOne(params, i));
-      } catch (e) {}
+        const q = await this.generateOne(params, i);
+        questoes.push(q);
+      } catch (e) {
+        console.error(e);
+      }
     }
     return { questoes, total: qtd, sucesso: questoes.length };
   },
@@ -52,9 +60,9 @@ const Generator = {
     };
   },
 
-  // ==========================================
-  // RENDERIZADOR DE CARDS (CORRIGIDO)
-  // ==========================================
+  // ==================================================
+  // RENDERIZADOR DE CARDS (CORRIGIDO V/F e ASSOC)
+  // ==================================================
   renderCardHTML(data, index = 0) {
     const tipos = {
       multipla_escolha: "Múltipla",
@@ -63,40 +71,40 @@ const Generator = {
       associacao: "Associação",
     };
 
-    // ID único
-    const cardId = data.id || `temp_${index}`;
-
-    // --- PREPARAÇÃO ROBUSTA DOS DADOS ---
+    // --- 1. PREPARAÇÃO DOS DADOS (Parse seguro) ---
     let alternativas = data.alternativas;
-    // Se for string, tenta parsear
-    if (typeof alternativas === "string") {
+    if (typeof alternativas === "string")
       try {
         alternativas = JSON.parse(alternativas);
       } catch (e) {}
+
+    // Tratamento específico para V/F (Afirmações)
+    let afirmacoes = data.afirmacoes;
+    if (
+      !afirmacoes &&
+      data.tipo_questao === "verdadeiro_falso" &&
+      Array.isArray(alternativas)
+    ) {
+      afirmacoes = alternativas; // Fallback se vier no campo alternativas
     }
 
-    // Associação: Tenta achar colunas
+    // Tratamento específico para Associação (Colunas)
     let colA = data.coluna_a;
     let colB = data.coluna_b;
-    // Se não tem direto, procura dentro de alternativas (formato salvo no banco)
-    if (!colA && alternativas && alternativas.coluna_a) {
+    if (
+      !colA &&
+      data.tipo_questao === "associacao" &&
+      alternativas &&
+      !Array.isArray(alternativas)
+    ) {
+      // Se estiver aninhado num objeto dentro de alternativas
       colA = alternativas.coluna_a;
       colB = alternativas.coluna_b;
     }
 
-    // V/F: Tenta achar afirmações
-    let afirmacoes = data.afirmacoes;
-    if (
-      !afirmacoes &&
-      Array.isArray(alternativas) &&
-      data.tipo_questao === "verdadeiro_falso"
-    ) {
-      afirmacoes = alternativas;
-    }
-
-    // --- HTML ---
+    // --- 2. HTML DO CABEÇALHO ---
     let html = `
-      <div class="question-card" id="card-${cardId}" style="margin-bottom:20px;">
+      <div class="question-card" style="margin-bottom:20px;">
         <div class="question-header">
            <span class="badge badge-primary">${
              tipos[data.tipo_questao] || data.tipo_questao
@@ -107,14 +115,16 @@ const Generator = {
            <span class="badge badge-warning">${data.serie || "Geral"}</span>
         </div>
         
-        <div class="question-enunciado" style="font-size:1.1rem; margin:15px 0; display:block;">
+        <div class="question-enunciado" style="font-size:1.1rem; margin:15px 0; font-weight:500;">
              <strong>${index + 1}.</strong> ${
-      data.enunciado || "Enunciado não carregado."
+      data.enunciado || "Questão sem enunciado."
     }
         </div>
     `;
 
-    // 1. MÚLTIPLA ESCOLHA
+    // --- 3. CORPO DA QUESTÃO (Por Tipo) ---
+
+    // A) MÚLTIPLA ESCOLHA
     if (
       data.tipo_questao === "multipla_escolha" &&
       Array.isArray(alternativas)
@@ -132,24 +142,19 @@ const Generator = {
         `</ul>`;
     }
 
-    // 2. VERDADEIRO OU FALSO (Com estilo corrigido)
+    // B) VERDADEIRO OU FALSO
     else if (
       data.tipo_questao === "verdadeiro_falso" &&
       Array.isArray(afirmacoes)
     ) {
       html += `<ul class="alternativas">`;
       afirmacoes.forEach((af) => {
-        // Tenta pegar o valor correto
-        const val = typeof af.valor !== "undefined" ? af.valor : af.verdadeiro;
-        const badge = val
-          ? '<span style="color:green; font-weight:bold;">[ V ]</span>'
-          : '<span style="color:red; font-weight:bold;">[ F ]</span>';
-        html += `<li class="alternativa" style="display:flex; gap:10px;">${badge} ${af.texto}</li>`;
+        html += `<li class="vf-item">[ &nbsp;&nbsp; ] ${af.texto}</li>`;
       });
       html += `</ul>`;
     }
 
-    // 3. ASSOCIAÇÃO (Colunas Lado a Lado)
+    // C) ASSOCIAÇÃO
     else if (data.tipo_questao === "associacao" && colA && colB) {
       html += `
         <div class="cols-container">
@@ -178,101 +183,71 @@ const Generator = {
         </div>`;
     }
 
-    // GABARITO (Com Botão de Edição e Texto Escuro)
-    const respText =
-      data.gabarito || data.resposta_esperada || "Gabarito indisponível";
-    const justText = data.justificativa_gabarito || data.justificativa || "";
+    // --- 4. GABARITO (BOX VERDE) ---
+    // Monta o HTML do gabarito dependendo do tipo
+    let gabaritoHTML = "";
 
+    if (data.tipo_questao === "verdadeiro_falso" && Array.isArray(afirmacoes)) {
+      // Monta lista V/F visual
+      gabaritoHTML = afirmacoes
+        .map((af) => {
+          const val = af.valor || af.verdadeiro; // pega boolean
+          const letter = val ? "V" : "F";
+          const colorClass = val ? "v" : "f";
+          return `<div><span class="vf-badge ${colorClass}">[ ${letter} ]</span> ${af.texto}</div>`;
+        })
+        .join("");
+    } else if (data.tipo_questao === "associacao") {
+      gabaritoHTML = `<strong>Pares Corretos:</strong> ${
+        data.gabarito || "Verifique a justificativa"
+      }`;
+    } else {
+      // Padrão (Texto ou Letra)
+      gabaritoHTML = `<strong>${
+        data.gabarito || data.resposta_esperada || "Gabarito não informado."
+      }</strong>`;
+    }
+
+    // Renderiza o Box
     html += `
-        <div class="resposta-esperada-container" id="resp-cont-${cardId}" style="margin-top:15px; background:#e8f5e9; padding:15px; border-radius:8px; border-left:4px solid #4caf50;">
-            <div style="display:flex; justify-content:space-between;">
-                <div id="view-gabarito-${cardId}">
-                    <strong style="color:#1b5e20;">✅ Gabarito Oficial:</strong><br>
-                    <span class="content" style="color:#333;">${respText}</span>
-                    ${
-                      justText
-                        ? `<br><br><em style="color:#555;">💡 ${justText}</em>`
-                        : ""
-                    }
-                </div>
-                <button onclick="Generator.toggleEdit('${cardId}')" style="background:none; border:1px solid #ccc; border-radius:4px; cursor:pointer;">✏️</button>
-            </div>
-
-            <div id="edit-gabarito-${cardId}" style="display:none; margin-top:10px;">
-                <label style="font-size:0.8rem; font-weight:bold;">Resposta:</label>
-                <textarea id="input-resp-${cardId}" class="form-control" rows="3" style="width:100%; margin-bottom:5px;">${respText}</textarea>
-                <label style="font-size:0.8rem; font-weight:bold;">Justificativa:</label>
-                <textarea id="input-just-${cardId}" class="form-control" rows="2" style="width:100%; margin-bottom:10px;">${justText}</textarea>
-                <div style="text-align:right;">
-                    <button class="btn btn-small btn-secondary" onclick="Generator.toggleEdit('${cardId}')">Cancelar</button>
-                    <button class="btn btn-small" onclick="Generator.saveEdit('${cardId}')" style="background:#4caf50; color:white;">Salvar</button>
-                </div>
-            </div>
+        <div class="resposta-esperada" style="margin-top:15px; padding:15px; background:#e8f5e9; border-radius:8px; border-left: 4px solid #4caf50;">
+            <div style="font-size:0.9rem; color:#2e7d32; margin-bottom:5px;">✅ GABARITO OFICIAL</div>
+            <div style="margin-bottom:10px;">${gabaritoHTML}</div>
+            ${
+              data.justificativa_gabarito
+                ? `<div style="font-size:0.9rem; color:#555; border-top:1px solid #c8e6c9; padding-top:8px;"><em>💡 ${data.justificativa_gabarito}</em></div>`
+                : ""
+            }
         </div>
     `;
 
-    html += `</div>`;
+    html += `</div>`; // Fecha card
     return html;
-  },
-
-  // --- Lógica de Edição ---
-  toggleEdit(id) {
-    const view = document.getElementById(`view-gabarito-${id}`);
-    const edit = document.getElementById(`edit-gabarito-${id}`);
-    if (edit.style.display === "none") {
-      edit.style.display = "block";
-      view.style.display = "none";
-    } else {
-      edit.style.display = "none";
-      view.style.display = "block";
-    }
-  },
-
-  async saveEdit(id) {
-    const novaResp = document.getElementById(`input-resp-${id}`).value;
-    const novaJust = document.getElementById(`input-just-${id}`).value;
-
-    // Atualiza UI
-    const view = document.getElementById(`view-gabarito-${id}`);
-    view.innerHTML = `<strong style="color:#1b5e20;">✅ Gabarito Oficial:</strong><br>
-                        <span class="content" style="color:#333;">${novaResp}</span>
-                        ${
-                          novaJust
-                            ? `<br><br><em style="color:#555;">💡 ${novaJust}</em>`
-                            : ""
-                        }`;
-
-    this.toggleEdit(id);
-
-    // Salva no Banco
-    if (!id.startsWith("temp_") && window.SupabaseClient) {
-      try {
-        await SupabaseClient.atualizarQuestao(id, {
-          gabarito: novaResp,
-          justificativa: novaJust, // ou justificativa_gabarito dependendo da coluna
-          resposta_esperada: novaResp, // para garantir compatibilidade
-        });
-        alert("Gabarito atualizado!");
-      } catch (e) {
-        alert("Erro ao salvar edição.");
-      }
-    }
   },
 };
 
-// ... (Funções de display unificadas mantidas iguais ao anterior) ...
+// ==================================================
+// FUNÇÕES DE EXIBIÇÃO E MENU
+// ==================================================
+
 function displayQuestion(data) {
   displayMultipleQuestions({ questoes: [data], total: 1, sucesso: 1 });
 }
+
 function displayMultipleQuestions(resultado) {
   const resultDiv = document.getElementById("result");
   if (!resultDiv) return;
+
   window.currentQuestions = resultado.questoes || [];
   const qs = window.currentQuestions;
+
   let html = `<div style="margin-bottom:20px;"><h3>✅ ${resultado.sucesso} Questões Geradas</h3></div>`;
+
   resultado.questoes.forEach((q, i) => {
     html += Generator.renderCardHTML(q, i);
   });
+
+  // MENU DE EXPORTAÇÃO
   html += `
       <div class="actions" style="margin-top: 30px; position: sticky; bottom: 20px; background: var(--bg-card); padding: 20px; border-radius: 8px; box-shadow: 0 -5px 20px rgba(0,0,0,0.1); display:flex; gap:10px; flex-wrap:wrap; justify-content:center; border:1px solid #ddd;">
         <button class="btn" onclick="location.reload()" style="background:#333;">🔄 Nova</button>
@@ -285,9 +260,12 @@ function displayMultipleQuestions(resultado) {
         <button class="btn btn-secondary" id="btn-copy">📋 Copiar</button>
       </div>
     `;
+
   resultDiv.innerHTML = html;
   resultDiv.classList.add("active");
   resultDiv.scrollIntoView({ behavior: "smooth" });
+
+  // Listeners
   setTimeout(() => {
     document
       .getElementById("btn-pdf")
@@ -310,6 +288,7 @@ function displayMultipleQuestions(resultado) {
   }, 100);
 }
 
+// Exporta
 if (typeof window !== "undefined") {
   window.Generator = Generator;
   window.displayQuestion = displayQuestion;

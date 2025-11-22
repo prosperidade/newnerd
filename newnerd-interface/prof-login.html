@@ -3,65 +3,132 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Login Professor - NEW NERD</title>
+    <title>Login Professor | New Nerd</title>
 
-    <!-- Supabase SDK -->
+    <link rel="stylesheet" href="css/style.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="login-page">
+    <div class="login-container">
+      <div class="login-card">
+        <div class="login-header">
+          <h1>New Nerd Docente</h1>
+          <p>Área do Professor</p>
+        </div>
+
+        <form id="loginForm">
+          <div class="form-group">
+            <label for="email">Email Corporativo</label>
+            <input
+              type="email"
+              id="email"
+              placeholder="ex: profxavier@newnerd.com"
+              required
+              autocomplete="email"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="senha">Senha</label>
+            <input
+              type="password"
+              id="senha"
+              placeholder="••••••••"
+              required
+              autocomplete="current-password"
+            />
+          </div>
+
+          <button type="submit" class="btn-login">Acessar Painel</button>
+        </form>
+
+        <div
+          id="error"
+          class="error"
+          style="display: none; margin-top: 15px"
+        ></div>
+
+        <div style="margin-top: 20px; font-size: 0.9rem; color: #999">
+          <a
+            href="login.html"
+            style="
+              color: var(--primary-color);
+              text-decoration: none;
+              font-weight: 600;
+            "
+          >
+            Sou Aluno (Ir para Login)
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/config.local.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-    <!-- Config -->
     <script src="js/config.js"></script>
 
-    <!-- Auth -->
-    <script src="js/prof-auth.js"></script>
     <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        verificarLoginProfessor();
+      document.addEventListener("configReady", () => {
+        const form = document.getElementById("loginForm");
+
+        form.addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const btn = form.querySelector("button");
+          const errEl = document.getElementById("error");
+          const email = document.getElementById("email").value.trim();
+          const senha = document.getElementById("senha").value.trim();
+
+          // Reset UI
+          btn.textContent = "Validando...";
+          btn.disabled = true;
+          errEl.style.display = "none";
+
+          try {
+            // 1. Login Direto (Professor usa email)
+            const { data, error } =
+              await window.supabaseClient.auth.signInWithPassword({
+                email: email,
+                password: senha,
+              });
+
+            if (error) throw error;
+
+            // 2. Verificação Extra: Garantir que é professor
+            const { data: profCheck } = await window.supabaseClient
+              .from("professores")
+              .select("id")
+              .eq("email", email)
+              .single();
+
+            if (!profCheck) {
+              // Se logou mas não está na tabela professores, faz logout e avisa
+              await window.supabaseClient.auth.signOut();
+              throw new Error(
+                "Este login não pertence a um professor cadastrado."
+              );
+            }
+
+            // SUCESSO -> Vai para o Painel do Professor
+            console.log("Login de professor aprovado.");
+            window.location.href = "painel-professor.html";
+          } catch (err) {
+            console.error(err);
+            btn.textContent = "Acessar Painel";
+            btn.disabled = false;
+
+            let msg = err.message;
+            if (msg.includes("Invalid login"))
+              msg = "Email ou senha incorretos.";
+
+            errEl.textContent = msg;
+            errEl.style.display = "block";
+          }
+        });
       });
     </script>
-
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        padding: 20px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        background: #f5f5f5;
-      }
-      .login-box {
-        background: #fff;
-        padding: 30px;
-        border-radius: 10px;
-        width: 320px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-      }
-      input {
-        width: 100%;
-        padding: 10px;
-        margin: 10px 0;
-      }
-      button {
-        width: 100%;
-        padding: 12px;
-        background: #4a5cff;
-        color: white;
-        border: none;
-        cursor: pointer;
-        font-size: 16px;
-        border-radius: 6px;
-      }
-      button:hover {
-        opacity: 0.9;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="login-box">
-      <h2>Login Professor</h2>
-      <input id="email" type="email" placeholder="E-mail" />
-      <input id="senha" type="password" placeholder="Senha" />
-      <button onclick="profLogin()">Entrar</button>
-    </div>
   </body>
 </html>
