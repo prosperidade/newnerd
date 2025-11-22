@@ -69,9 +69,7 @@ const CONFIG = {
   // Em DEV, tenta carregar do config.local.js.
   // Em PROD, é null para garantir que a chave nunca seja exposta no navegador.
   OPENAI_API_KEY:
-    ENV === "dev"
-      ? window.LOCAL_CONFIG?.OPENAI_API_KEY || null
-      : null,
+    ENV === "dev" ? window.LOCAL_CONFIG?.OPENAI_API_KEY || null : null,
 
   // Identidade de teste (professor)
   PROFESSOR_ID: ENV === "dev" ? LEGACY_DEV.PROFESSOR_ID : null,
