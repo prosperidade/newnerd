@@ -510,9 +510,3 @@ mais relatorios_desempenho, contestacoes, diagnosticos_alunos.
 
 se for logs / configuração / debug →
 config_sistema, logs_api, histórico de chat (chat_*, conversas, mensagens).
-
-
-AIzaSyAx0qe6Gl-VGwQbWQ_b65PbyX-YZTQW48U
-
-.\supabase.exe secrets set GOOGLE_API_KEY="AIzaSyAx0qe6Gl-VGwQbWQ_b65PbyX-YZTQW48U" --project-ref cxizjrdlkhhegzpzzmgl
-  
