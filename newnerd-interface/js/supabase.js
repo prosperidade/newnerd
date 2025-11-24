@@ -240,9 +240,10 @@ const SupabaseClient = {
   // --- Métodos da Busca Semântica (Preservados) ---
 
   async buscarSemanticaProfessor(query, professorIdOverride, opts) {
-    // ... (Mantenha seu código de busca semântica original aqui se ele for usado no gerador) ...
-    // Como o foco agora é salvar questões, vou deixar o esqueleto para não dar erro se for chamado.
-    console.log("Busca semântica chamada (Stub)");
+    // Stub temporário: a busca semântica ainda não foi reimplementada aqui.
+    // Até receber a lógica definitiva, apenas registramos a chamada e retornamos
+    // um array vazio para evitar falhas em quem invocar este método.
+    console.log("Busca semântica chamada (Stub) – retorno vazio por padrão");
     return [];
   },
 };
