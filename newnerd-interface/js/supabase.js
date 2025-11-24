@@ -1,7 +1,7 @@
 // ============================================================================
 // SUPABASE CLIENT – NEW NERD (PROFESSOR) - CORRIGIDO
 // ✅ Conexão corrigida com o cliente global
-// ✅ Correção do erro de sintaxe em salvarQuestaesEmLote
+// ✅ Correção do erro de sintaxe em salvarQuestoesEmLote
 // ============================================================================
 
 const SupabaseClient = {
@@ -134,7 +134,7 @@ const SupabaseClient = {
   },
 
   // Salva múltiplas questões (CORRIGIDO)
-  async salvarQuestaesEmLote(questoes, professorIdOverride = null) {
+  async salvarQuestoesEmLote(questoes, professorIdOverride = null) {
     if (!this.init()) return null;
 
     try {
