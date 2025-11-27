@@ -676,3 +676,76 @@ body[data-theme="dark"] .stats-grid {
   border-left-color: #9e9e9e;
   opacity: 0.7;
 }
+/* ===========================
+   PADRONIZA TEMA & ÍCONES
+   (colar no final do biblioteca-prof.css)
+   =========================== */
+
+/* Esconde o botão injetado pelo live-server (se aparecer) */
+#nn-theme-toggle {
+  display: none !important;
+}
+
+/* Botão de tema padronizado (mesmo das outras páginas) */
+.theme-toggle {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg-card, #fff) !important;
+  color: var(--text-primary, #111) !important;
+  font-size: 22px; /* emoji grande */
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  z-index: 1000;
+}
+
+/* Contraste seguro em ambos temas */
+body[data-theme="dark"] .theme-toggle {
+  background: #0f3460 !important;
+  color: #eee !important;
+}
+body:not([data-theme="dark"]) .theme-toggle {
+  background: #ffffff !important;
+  color: #111 !important;
+}
+
+/* Garante que emojis/ícones nos cards aparecem e herdarem cor do tema */
+.document-type-icon,
+.action-btn {
+  font-size: 20px;
+  color: currentColor !important; /* herda do texto do card */
+}
+
+/* Se você usa <i class="fa ..."> em algum lugar e a fonte não carrega,
+   os emojis vão continuar aparecendo. Para texto/emoji de ícone: */
+.action-btn .icon,
+.document-type-icon .icon {
+  font-style: normal; /* previne itálico em <i> */
+}
+
+/* Cards no dark ficam coerentes com o resto */
+body[data-theme="dark"] .card {
+  background: var(--bg-card, #0f3460);
+  border: 1px solid #4a5568;
+  color: var(--text-primary, #e0e0e0);
+}
+
+/* Campo de busca no dark */
+body[data-theme="dark"] .search-input,
+body[data-theme="dark"] .semantic-search textarea {
+  background: #1a2332;
+  border: 2px solid #4a5568;
+  color: #e0e0e0;
+}
+body[data-theme="dark"] .search-input::placeholder,
+body[data-theme="dark"] .semantic-search textarea::placeholder {
+  color: #718096;
+}

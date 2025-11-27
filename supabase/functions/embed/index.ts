@@ -1,8 +1,11 @@
-// supabase/functions/process-file/index.ts (or embed/index.ts)
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+// supabase/functions/embed/index.ts
+// PROCESSADOR HÍBRIDO (Aceita PDF para baixar OU Texto pronto)
 
-console.log("🚀 Function process-file (Google Gemini) started!");
+// deno-lint-ignore-file
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import pdf from "npm:pdf-parse@1.1.1";
+import { Buffer } from "node:buffer";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,126 +13,128 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
-  }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const googleKey = Deno.env.get("GOOGLE_API_KEY");
+    const GOOGLE_API_KEY = Deno.env.get("GOOGLE_API_KEY");
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SERVICE_ROLE =
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE");
 
-    if (!supabaseUrl || !supabaseKey || !googleKey) {
-      throw new Error(
-        "Missing environment variables (SUPABASE_URL, SERVICE_ROLE_KEY, GOOGLE_API_KEY)."
-      );
+    if (!SUPABASE_URL || !SERVICE_ROLE || !GOOGLE_API_KEY)
+      throw new Error("Chaves ausentes.");
+
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+    // 1. Receber Payload (Agora aceita 'text' opcional)
+    const { record, text: manualText } = await req.json();
+
+    if (!record || !record.name) {
+      return new Response(JSON.stringify({ message: "Sem nome de arquivo" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    console.log(`📄 Processando: ${record.name}`);
 
-    const bodyText = await req.text();
-    if (!bodyText) throw new Error("Empty request body.");
+    let textToEmbed = "";
 
-    const { document_id, table_name, bucket_name } = JSON.parse(bodyText);
+    // 2. DECISÃO: Usar texto enviado OU baixar PDF?
+    if (manualText && manualText.length > 0) {
+      console.log("📝 Usando texto enviado pelo Frontend (Word/Txt)...");
+      textToEmbed = manualText;
+    } else if (record.name.toLowerCase().endsWith(".pdf")) {
+      console.log("📥 Baixando PDF para extração...");
+      const { data: fileData, error: downloadError } = await supabase.storage
+        .from("newnerd_professores")
+        .download(record.name);
 
-    if (!document_id || !table_name || !bucket_name) {
-      throw new Error(
-        "Missing required fields: document_id, table_name, bucket_name"
-      );
-    }
+      if (downloadError)
+        throw new Error(`Erro download: ${downloadError.message}`);
 
-    console.log(`📄 Processing Doc ID: ${document_id} in ${table_name}`);
-
-    // 1. Get Document Metadata
-    const { data: doc, error: dbErr } = await supabase
-      .from(table_name)
-      .select("*")
-      .eq("id", document_id)
-      .single();
-
-    if (dbErr || !doc) throw new Error(`Document not found: ${dbErr?.message}`);
-
-    const path = doc.caminho_arquivo || doc.caminho;
-    if (!path) throw new Error("File path missing in database record.");
-
-    // 2. Download File
-    const { data: fileData, error: dlErr } = await supabase.storage
-      .from(bucket_name)
-      .download(path);
-
-    if (dlErr) throw new Error(`Storage download error: ${dlErr.message}`);
-
-    // 3. Extract Text (Simple extraction for now)
-    const textContent = await fileData.text();
-    // Limit to 8000 chars to be safe with limits, remove extra spaces
-    const cleanText = textContent.slice(0, 8000).replace(/\s+/g, " ").trim();
-
-    if (cleanText.length < 10) {
-      console.log("⚠️ Text too short. Skipping embedding.");
-      await supabase
-        .from(table_name)
-        .update({
-          status_processamento: "ignored", // Aluno
-          status: "ready", // Professor
-        })
-        .eq("id", document_id);
-
+      try {
+        const arrayBuffer = await fileData.arrayBuffer();
+        const pdfBuffer = Buffer.from(arrayBuffer);
+        const pdfData = await pdf(pdfBuffer);
+        textToEmbed = pdfData.text;
+      } catch (e: any) {
+        throw new Error(`Erro parsing PDF: ${e.message}`);
+      }
+    } else {
+      // Se não é PDF e não mandou texto
       return new Response(
-        JSON.stringify({ success: true, message: "Ignored (short text)" }),
+        JSON.stringify({
+          skipped: true,
+          reason: "Formato não suportado pelo servidor (e sem texto enviado)",
+        }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
     }
 
-    // 4. Generate Embedding (Google Gemini)
-    console.log("🧠 Calling Google Gemini API...");
-    const embeddingResp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${googleKey}`,
+    // 3. Limpeza e Corte
+    textToEmbed = textToEmbed.replace(/\n/g, " ").replace(/\s+/g, " ").trim();
+    const textChunk = textToEmbed.substring(0, 8000);
+
+    if (!textChunk || textChunk.length < 5)
+      throw new Error("Texto vazio ou insuficiente.");
+
+    // 4. Embedding (Google)
+    console.log("🤖 Gerando embedding...");
+    const googleRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${GOOGLE_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "models/text-embedding-004",
-          content: { parts: [{ text: cleanText }] },
+          content: { parts: [{ text: textChunk }] },
         }),
       }
     );
 
-    if (!embeddingResp.ok) {
-      const errTxt = await embeddingResp.text();
-      throw new Error(`Google API Error: ${errTxt}`);
+    if (!googleRes.ok) {
+      const txt = await googleRes.text();
+      throw new Error(`Erro Google (${googleRes.status}): ${txt}`);
     }
 
-    const embeddingData = await embeddingResp.json();
-    const vector = embeddingData.embedding.values; // 768 dimensions
+    const googleData = await googleRes.json();
+    const embedding = googleData.embedding?.values;
 
-    // 5. Save to Database
-    console.log("💾 Saving vector...");
-    const updateData = {
-      embedding: vector,
-      texto_extraido: cleanText,
-      status_processamento: "completed", // Aluno status
-      status: "ready", // Professor status
-    };
+    if (!embedding) throw new Error("Google não retornou vetor.");
 
-    const { error: updateErr } = await supabase
-      .from(table_name)
-      .update(updateData)
-      .eq("id", document_id);
+    // 5. Salvar
+    console.log("💾 Salvando...");
+    const { error: rpcError } = await supabase.rpc(
+      "insert_professor_embedding",
+      {
+        p_professor_id: record.owner || record.professor_id,
+        p_documento_path: record.name,
+        p_chunk_texto: textChunk,
+        p_metadata: { titulo: record.name },
+        p_embedding: embedding,
+      }
+    );
 
-    if (updateErr)
-      throw new Error(`Database update error: ${updateErr.message}`);
+    if (rpcError) {
+      const { error: updateError } = await supabase
+        .from("arquivos_professor")
+        .update({ texto_extraido: textChunk, embedding: embedding })
+        .eq("caminho", record.name);
+      if (updateError)
+        throw new Error(`Erro update DB: ${updateError.message}`);
+    }
 
-    console.log("✅ Success!");
+    console.log("✅ Sucesso!");
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (err: any) {
-    const msg = err.message || String(err);
-    console.error("❌ FATAL ERROR:", msg);
-    return new Response(JSON.stringify({ error: msg }), {
+  } catch (error: any) {
+    console.error("❌ Erro:", error.message);
+    return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

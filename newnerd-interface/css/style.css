@@ -9,7 +9,9 @@
 }
 
 :root {
-  /* Cores principais */
+  /* ...suas cores já existentes... */
+  --card-azul: #1e3a8a; /* azul escuro */
+  --card-azul-text: #ffffff; /* texto branco */
   --primary-color: #667eea;
   --primary-dark: #764ba2;
   --secondary-color: #f093fb;
@@ -698,12 +700,43 @@ textarea {
 }
 
 .question-card {
-  background: var(--bg-secondary);
+  background: var(--card-azul);
+  color: var(--card-azul-text);
   border-left: 4px solid var(--primary-color);
   padding: 25px;
   border-radius: 8px;
   margin-bottom: 20px;
   animation: slideIn 0.3s ease;
+}
+.question-card .question-enunciado,
+.question-card .alternativas,
+.question-card .alternativa,
+.question-card .alternativa .alternativa-letra {
+  color: var(--card-azul-text);
+}
+
+.question-card .alternativa {
+  background: transparent;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+}
+.question-card .alternativa:hover {
+  border-color: #cbd5e1; /* claro */
+  box-shadow: none;
+}
+
+/* Associação dentro do card: sem caixa clara */
+.question-card .cols-container {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.question-card .col-box h4 {
+  color: var(--card-azul-text);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.25);
+}
+.question-card .assoc-item,
+.question-card .vf-item {
+  color: var(--card-azul-text);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 @keyframes slideIn {
@@ -795,25 +828,32 @@ textarea {
 }
 
 /* Resposta esperada / Gabarito */
+/* Resposta esperada / Gabarito — NEUTRO (cinza) */
+:root {
+  --gabarito-bg: #6b7280; /* cinza médio */
+  --gabarito-text: #ffffff; /* sempre branco */
+}
+
+/* se quiser diferenciar no dark, deixe igual ou ajuste aqui */
+body[data-theme="dark"] {
+  --gabarito-bg: #6b7280;
+  --gabarito-text: #ffffff;
+}
+
 .resposta-esperada {
-  background: #e8f5e9;
-  border: 1px solid #c8e6c9;
-  border-left: 5px solid #4caf50;
-  border-radius: 8px;
-  padding: 15px;
-  margin-top: 15px;
-  color: #1b5e20 !important;
+  background: var(--gabarito-bg) !important;
+  border: 1px solid var(--gabarito-bg) !important;
+  border-left: 5px solid var(--gabarito-bg) !important;
+  border-radius: 8px !important;
+  padding: 15px !important;
+  margin-top: 15px !important;
+  color: var(--gabarito-text) !important;
 }
 
 .resposta-esperada strong,
-.resposta-esperada div {
-  color: #1b5e20 !important;
-}
-
+.resposta-esperada div,
 .resposta-esperada em {
-  display: block;
-  margin-top: 5px;
-  color: #333 !important;
+  color: var(--gabarito-text) !important;
 }
 
 /* Critérios de avaliação */
@@ -1078,7 +1118,7 @@ textarea {
   transform: scale(1.2);
 }
 
-/* Theme Toggle */
+/* Botão do tema: sempre visível e com contraste adequado */
 .theme-toggle {
   position: fixed;
   bottom: 20px;
@@ -1089,14 +1129,27 @@ textarea {
   border: none;
   background: var(--bg-card);
   color: var(--text-primary);
-  font-size: 1.5rem;
-  cursor: pointer;
-  box-shadow: var(--shadow-lg);
-  transition: var(--transition);
-  z-index: 1000;
+  font-size: 22px; /* deixa o emoji grande */
+  line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: var(--shadow-lg);
+  transition: var(--transition);
+  z-index: 1000;
+}
+
+/* Garante contraste se alguma regra antiga estiver sobrescrevendo */
+body[data-theme="dark"] .theme-toggle {
+  color: #eee !important;
+}
+body:not([data-theme="dark"]) .theme-toggle {
+  color: #111 !important;
+}
+
+/* Se o live-server injetar outro botão, escondemos pra não confundir */
+#nn-theme-toggle {
+  display: none !important;
 }
 
 /* Ajuste para Mobile */
@@ -1115,4 +1168,84 @@ textarea {
   .cols-container {
     grid-template-columns: 1fr;
   }
+}
+/* ===========================
+   CHAT – Professor (mesmo do Aluno)
+   =========================== */
+
+/* Botão flutuante (fica à direita) */
+.chat-widget-btn {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 60px;
+  height: 60px;
+  background: var(--bg-main);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 28px;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.5);
+  cursor: pointer;
+  transition: transform 0.3s ease;
+  z-index: 1000;
+  border: 2px solid white;
+}
+.chat-widget-btn:hover {
+  transform: scale(1.1);
+}
+
+/* Janela do chat (mesma moldura) */
+.chat-modal {
+  position: fixed;
+  bottom: 100px;
+  right: 30px;
+  width: 400px;
+  height: 460px;
+  background: var(--bg-card);
+  border-radius: 20px;
+  border: 5px solid var(--primary-color);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 999;
+}
+.chat-modal.active {
+  display: flex;
+  animation: slideUp 0.3s ease;
+}
+
+/* Animação de entrada */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* (Opcional) Ajustes mobile iguais ao aluno */
+@media (max-width: 768px) {
+  .chat-modal {
+    width: 90%;
+    right: 5%;
+    bottom: 100px;
+    height: 70vh;
+  }
+  .chat-widget-btn {
+    right: 20px;
+    bottom: 20px;
+  }
+}
+
+/* (Recomendado) No gerador, deixe o tema à esquerda para não colidir com o chat */
+body.page-gerador .theme-toggle {
+  left: 24px;
+  right: auto;
 }

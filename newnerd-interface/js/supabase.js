@@ -1,21 +1,19 @@
 // ============================================================================
-// SUPABASE CLIENT – NEW NERD (PROFESSOR) - CORRIGIDO
-// ✅ Conexão corrigida com o cliente global
-// ✅ Correção do erro de sintaxe em salvarQuestaesEmLote
+// SUPABASE CLIENT – NEW NERD (PROFESSOR) – Consolidado
+// - Mantém suas rotinas de questões
+// - Adiciona helpers para Biblioteca (URL assinada + busca semântica)
 // ============================================================================
 
 const SupabaseClient = {
-  // O cliente agora é obtido da janela global, inicializado pelo config.js
+  // Cliente global inicializado pelo config.js
   get client() {
     return window.supabaseClient;
   },
 
-  // A verificação de inicialização depende da existência do cliente global
   get initialized() {
     return !!window.supabaseClient;
   },
 
-  // Função de inicialização agora é apenas um wrapper de verificação
   init() {
     if (!this.initialized) {
       console.error(
@@ -28,24 +26,19 @@ const SupabaseClient = {
 
   async getProfessorId() {
     if (!this.init()) return null;
-
     try {
       const { data } = await this.client.auth.getUser();
       const user = data?.user;
-
       if (user) return user.id;
 
-      // MODO DEV – Se configurado em CONFIG
       if (
         typeof CONFIG !== "undefined" &&
         CONFIG.ENV === "dev" &&
-        CONFIG.TESTE_EMAIL
+        CONFIG.PROFESSOR_ID
       ) {
-        console.warn("⚠️ DEV: Retornando professor fake...");
-        // Aqui você pode retornar um ID fixo para testes se o login falhar
-        // return "SEU_ID_FIXO_DE_TESTE";
+        console.warn("⚠️ DEV: Retornando professor id de CONFIG.PROFESSOR_ID");
+        return CONFIG.PROFESSOR_ID;
       }
-
       return null;
     } catch (e) {
       console.error("❌ Erro no getProfessorId:", e);
@@ -53,14 +46,93 @@ const SupabaseClient = {
     }
   },
 
-  // ============================================================================
-  // CRUD QUESTÕES
-  // ============================================================================
+  // =========================
+  // Helpers de STORAGE
+  // =========================
+  async criarUrlAssinadaProfessor(path, expires = 3600) {
+    if (!this.init()) return null;
+    const bucket =
+      (window.CONFIG && CONFIG.BUCKET_PROFESSOR) || "newnerd_professores";
+    const { data, error } = await this.client.storage
+      .from(bucket)
+      .createSignedUrl(path, expires);
+    if (error) {
+      console.error("URL assinada (prof):", error);
+      return null;
+    }
+    return data.signedUrl;
+  },
 
-  // Salva uma única questão
+  // =========================
+  // BUSCA SEMÂNTICA – Professor
+  // =========================
+  async buscarSemanticaProfessor(query, professorId, opts = {}) {
+    if (!this.init()) return [];
+    const matchCount = opts.matchCount ?? 5;
+    const matchThreshold = opts.matchThreshold ?? 0.0;
+
+    // 1) tenta Edge Function semantic-search
+    try {
+      const { data, error } = await this.client.functions.invoke(
+        "semantic-search",
+        {
+          body: {
+            query,
+            professor_id: professorId,
+            match_count: matchCount,
+            match_threshold: matchThreshold,
+          },
+        }
+      );
+      if (error) throw error;
+      return data?.results || data || [];
+    } catch (e1) {
+      console.warn("semantic-search indisponível:", e1?.message || e1);
+    }
+
+    // 2) tenta RPC existente (ajuste de nomes de parâmetros se necessário)
+    try {
+      const { data, error } = await this.client.rpc(
+        "buscar_biblioteca_professor_hibrida",
+        {
+          p_query: query,
+          p_professor_id: professorId,
+          p_match_count: matchCount,
+          p_match_threshold: matchThreshold,
+        }
+      );
+      if (error) throw error;
+      return data || [];
+    } catch (e2) {
+      console.warn("RPC indisponível:", e2?.message || e2);
+    }
+
+    // 3) fallback simples por texto
+    try {
+      const { data, error } = await this.client
+        .from("arquivos_professor")
+        .select("caminho, titulo, nome_original, texto_extraido")
+        .eq("professor_id", professorId)
+        .ilike("texto_extraido", `%${query}%`)
+        .limit(matchCount);
+      if (error) throw error;
+      return (data || []).map((x) => ({
+        documento_path: x.caminho,
+        metadata: { titulo: x.titulo || x.nome_original },
+        chunk_texto: x.texto_extraido?.slice(0, 500) || "",
+        score_final: null,
+      }));
+    } catch (e3) {
+      console.error("Fallback texto também falhou:", e3?.message || e3);
+      return [];
+    }
+  },
+
+  // ============================================================================
+  // CRUD QUESTÕES (mantém seu código)
+  // ============================================================================
   async salvarQuestao(questao, professorIdOverride = null) {
     if (!this.init()) return null;
-
     try {
       const professorId = professorIdOverride || (await this.getProfessorId());
       if (!professorId) throw new Error("Professor não autenticado.");
@@ -68,13 +140,10 @@ const SupabaseClient = {
       const registro = {
         professor_id: professorId,
         enunciado: questao.enunciado ?? null,
-        // Normalização de campos
         tipo_questao: questao.tipo_questao || questao.tipo,
         disciplina: questao.disciplina,
         serie: questao.serie || "Geral",
         dificuldade: questao.dificuldade,
-
-        // JSONB fields
         alternativas: questao.alternativas
           ? typeof questao.alternativas === "string"
             ? JSON.parse(questao.alternativas)
@@ -95,19 +164,14 @@ const SupabaseClient = {
             ? JSON.parse(questao.coluna_b)
             : questao.coluna_b
           : null,
-
         gabarito: questao.gabarito || questao.resposta_esperada,
         justificativa_gabarito:
           questao.justificativa_gabarito || questao.justificativa,
-
-        // Metadados
         tokens_usados: questao.tokens_usados || 0,
         custo_estimado: questao.custo_estimado || 0,
         api_usada: questao.api_usada || "desconhecido",
       };
 
-      // Ajuste específico para V/F e Associação para garantir que salve no campo 'alternativas' se o banco exigir
-      // (Isso depende da estrutura do seu banco, mas mal não faz ter redundância se o banco for flexível)
       if (registro.tipo_questao === "verdadeiro_falso" && registro.afirmacoes) {
         registro.alternativas = registro.afirmacoes;
       } else if (registro.tipo_questao === "associacao" && registro.coluna_a) {
@@ -124,7 +188,6 @@ const SupabaseClient = {
         .single();
 
       if (error) throw error;
-
       console.log("📌 Questão salva no Supabase:", data.id);
       return data;
     } catch (e) {
@@ -133,10 +196,8 @@ const SupabaseClient = {
     }
   },
 
-  // Salva múltiplas questões (CORRIGIDO)
   async salvarQuestaesEmLote(questoes, professorIdOverride = null) {
     if (!this.init()) return null;
-
     try {
       const professorId = professorIdOverride || (await this.getProfessorId());
       if (!professorId) throw new Error("Professor não autenticado.");
@@ -168,7 +229,6 @@ const SupabaseClient = {
         .select();
 
       if (error) throw error;
-
       console.log(`✅ ${data.length} questões salvas em lote.`);
       return data;
     } catch (e) {
@@ -179,7 +239,6 @@ const SupabaseClient = {
 
   async carregarQuestoes(professorIdOverride = null, filters = {}) {
     if (!this.init()) return [];
-
     try {
       const professorId = professorIdOverride || (await this.getProfessorId());
       if (!professorId) return [];
@@ -194,7 +253,6 @@ const SupabaseClient = {
 
       const { data, error } = await query;
       if (error) throw error;
-
       return data;
     } catch (e) {
       console.error("⚠️ Erro ao carregar questões:", e);
@@ -205,9 +263,7 @@ const SupabaseClient = {
   async deletarQuestao(id) {
     if (!this.init()) return false;
     try {
-      // Tenta deletar dependências primeiro (se não tiver cascade no banco)
       await this.client.from("respostas_alunos").delete().eq("questao_id", id);
-
       const { error } = await this.client
         .from("questoes_geradas")
         .delete()
@@ -220,7 +276,6 @@ const SupabaseClient = {
     }
   },
 
-  // Atualizar Questão (Edição)
   async atualizarQuestao(id, campos) {
     if (!this.init()) return false;
     try {
@@ -228,7 +283,6 @@ const SupabaseClient = {
         .from("questoes_geradas")
         .update(campos)
         .eq("id", id);
-
       if (error) throw error;
       return true;
     } catch (e) {
@@ -236,16 +290,6 @@ const SupabaseClient = {
       return false;
     }
   },
-
-  // --- Métodos da Busca Semântica (Preservados) ---
-
-  async buscarSemanticaProfessor(query, professorIdOverride, opts) {
-    // ... (Mantenha seu código de busca semântica original aqui se ele for usado no gerador) ...
-    // Como o foco agora é salvar questões, vou deixar o esqueleto para não dar erro se for chamado.
-    console.log("Busca semântica chamada (Stub)");
-    return [];
-  },
 };
 
-// Exporta globalmente
 window.SupabaseClient = SupabaseClient;

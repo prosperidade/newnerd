@@ -10,7 +10,7 @@
       rel="stylesheet"
     />
   </head>
-  <body>
+  <body class="page-questao">
     <nav class="navbar">
       <div class="nav-content">
         <div style="display: flex; align-items: center; gap: 10px">
@@ -215,6 +215,61 @@
         </div>
       </div>
     </div>
+
+    <!-- Chat (botão e modal) -->
+    <button class="chat-widget-btn" type="button" onclick="toggleChat()">
+      🤖
+    </button>
+    <div class="chat-modal" id="chatModal">
+      <iframe
+        src="chat-aluno.html"
+        class="chat-frame"
+        style="width: 100%; height: 100%; border: none"
+      ></iframe>
+    </div>
+
+    <button
+      id="themeToggle"
+      class="theme-toggle"
+      type="button"
+      title="Alternar tema"
+    ></button>
+    <script src="js/theme.js"></script>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", async () => {
+        try {
+          const aluno = await verificarAuth();
+
+          const elNome = document.getElementById("alunoNome");
+          const elSaud = document.getElementById("saudacao"); // pode não existir em questao.html
+
+          if (aluno) {
+            const nome = aluno.nome ? aluno.nome.split(" ")[0] : "Estudante";
+            if (elNome) elNome.textContent = nome;
+            if (elSaud) elSaud.textContent = `Olá, ${nome}! 👋`;
+            carregarStats(aluno.id);
+          }
+        } catch (e) {
+          console.warn("Auth ainda não disponível:", e);
+        }
+      });
+
+      async function carregarStats(id) {
+        const { count } = await window.supabaseClient
+          .from("respostas_alunos")
+          .select("*", { count: "exact", head: true })
+          .eq("aluno_id", id);
+
+        const el = document.getElementById("statsQuestoes");
+        if (el && typeof count === "number") el.textContent = String(count);
+      }
+
+      function toggleChat() {
+        const modal = document.getElementById("chatModal");
+        if (modal) modal.classList.toggle("active");
+      }
+    </script>
 
     <script src="js/config.local.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

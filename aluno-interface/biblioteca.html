@@ -5,587 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Minha Biblioteca - NEW NERD</title>
 
+    <!-- CSS ÚNICO DO ALUNO -->
     <link rel="stylesheet" href="css/aluno.css" />
-
-    <style>
-      .biblioteca-container {
-        max-width: 1400px;
-        margin: 0 auto;
-        padding: 20px;
-      }
-
-      .biblioteca-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 30px;
-        border-radius: 15px;
-        margin-bottom: 30px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-      }
-
-      .biblioteca-header h1 {
-        margin: 0 0 10px 0;
-        font-size: 2.2rem;
-      }
-
-      .biblioteca-header p {
-        margin: 0;
-        opacity: 0.95;
-        font-size: 1.1rem;
-      }
-
-      .biblioteca-grid {
-        display: grid;
-        grid-template-columns: 350px 1fr;
-        gap: 25px;
-      }
-
-      @media (max-width: 968px) {
-        .biblioteca-grid {
-          grid-template-columns: 1fr;
-        }
-      }
-
-      .card {
-        background: var(--bg-card);
-        border-radius: 15px;
-        padding: 25px;
-        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
-      }
-
-      /* Upload Area */
-      .upload-section {
-        position: sticky;
-        top: 20px;
-        height: fit-content;
-      }
-
-      .drop-zone {
-        border: 3px dashed #667eea;
-        border-radius: 12px;
-        padding: 40px 20px;
-        text-align: center;
-        cursor: pointer;
-        transition: all 0.3s;
-        background: linear-gradient(
-          135deg,
-          rgba(102, 126, 234, 0.05) 0%,
-          rgba(118, 75, 162, 0.05) 100%
-        );
-      }
-
-      .drop-zone:hover {
-        border-color: #764ba2;
-        background: linear-gradient(
-          135deg,
-          rgba(102, 126, 234, 0.1) 0%,
-          rgba(118, 75, 162, 0.1) 100%
-        );
-        transform: scale(1.01);
-      }
-
-      .drop-zone.dragover {
-        border-color: #4caf50;
-        background: rgba(76, 175, 80, 0.1);
-        transform: scale(1.02);
-      }
-
-      .drop-zone-icon {
-        font-size: 48px;
-        margin-bottom: 15px;
-      }
-
-      .drop-zone h3 {
-        color: var(--text-primary);
-        margin-bottom: 10px;
-        font-size: 1.2rem;
-      }
-
-      .supported-formats {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        justify-content: center;
-        margin-top: 15px;
-      }
-
-      .format-badge {
-        background: #f0f4ff;
-        color: #667eea;
-        padding: 4px 10px;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        font-weight: 600;
-      }
-
-      body[data-theme="dark"] .format-badge {
-        background: #1a2e42;
-        color: #90cdf4;
-      }
-
-      /* File Queue */
-      .file-queue {
-        margin-top: 20px;
-        max-height: 250px;
-        overflow-y: auto;
-      }
-
-      .file-item {
-        background: var(--bg-secondary);
-        border-radius: 8px;
-        padding: 12px;
-        margin-bottom: 10px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        animation: slideIn 0.3s ease;
-      }
-
-      .file-item:hover {
-        background: var(--bg-hover);
-      }
-
-      .file-icon {
-        font-size: 24px;
-        width: 40px;
-        height: 40px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: var(--bg-card);
-        border-radius: 8px;
-      }
-
-      .file-info {
-        flex: 1;
-      }
-
-      .file-name {
-        font-weight: 600;
-        color: var(--text-primary);
-        margin-bottom: 3px;
-      }
-
-      .file-meta {
-        font-size: 0.85rem;
-        color: var(--text-secondary);
-      }
-
-      .file-status {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .status-badge {
-        padding: 4px 10px;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        font-weight: 600;
-      }
-
-      .status-pending {
-        background: #fff3cd;
-        color: #856404;
-      }
-      .status-uploading {
-        background: #cce5ff;
-        color: #004085;
-      }
-      .status-processing {
-        background: #d4edda;
-        color: #155724;
-      }
-      .status-success {
-        background: #d1f2eb;
-        color: #00695c;
-      }
-      .status-error {
-        background: #f8d7da;
-        color: #721c24;
-      }
-
-      /* Library */
-      .library-section {
-        min-height: 500px;
-      }
-
-      .search-bar {
-        position: relative;
-        margin-bottom: 20px;
-      }
-
-      .search-input {
-        width: 100%;
-        padding: 12px 45px 12px 15px;
-        border: 2px solid var(--border-color);
-        border-radius: 8px;
-        font-size: 16px;
-        transition: all 0.3s;
-        background: var(--bg-card);
-        color: var(--text-primary);
-      }
-
-      .search-input:focus {
-        outline: none;
-        border-color: var(--border-focus);
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-      }
-
-      .search-icon {
-        position: absolute;
-        right: 15px;
-        top: 50%;
-        transform: translateY(-50%);
-        font-size: 20px;
-        color: var(--text-muted);
-      }
-
-      .filter-tabs {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
-      }
-
-      .filter-tab {
-        background: var(--bg-secondary);
-        color: var(--text-secondary);
-        padding: 8px 16px;
-        border-radius: 20px;
-        font-size: 0.9rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.2s;
-        border: 2px solid transparent;
-      }
-
-      .filter-tab:hover {
-        transform: scale(1.05);
-      }
-
-      .filter-tab.active {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-      }
-
-      /* Documents Grid */
-      .documents-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 20px;
-      }
-
-      .document-card {
-        background: var(--bg-secondary);
-        border-radius: 10px;
-        padding: 20px;
-        transition: all 0.3s;
-        cursor: pointer;
-        border: 2px solid transparent;
-        position: relative;
-        overflow: hidden;
-      }
-
-      .document-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-        border-color: #667eea;
-      }
-
-      .document-type-icon {
-        position: absolute;
-        top: 15px;
-        right: 15px;
-        font-size: 24px;
-        opacity: 0.8;
-      }
-
-      .document-title {
-        font-weight: 600;
-        color: var(--text-primary);
-        font-size: 1.1rem;
-        margin-bottom: 10px;
-        padding-right: 40px;
-      }
-
-      .document-excerpt {
-        color: var(--text-secondary);
-        font-size: 0.9rem;
-        line-height: 1.4;
-        margin-bottom: 15px;
-        display: -webkit-box;
-        -webkit-line-clamp: 3;
-        line-clamp: 3;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-      }
-
-      .document-meta {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 0.85rem;
-        color: var(--text-muted);
-        padding-top: 15px;
-        border-top: 1px solid var(--border-color);
-      }
-
-      .document-actions {
-        display: flex;
-        gap: 10px;
-      }
-
-      .action-btn {
-        background: none;
-        border: none;
-        color: #667eea;
-        cursor: pointer;
-        font-size: 18px;
-        transition: all 0.2s;
-        padding: 5px;
-      }
-
-      .action-btn:hover {
-        transform: scale(1.2);
-      }
-
-      /* Stats */
-      .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-        gap: 15px;
-        margin-top: 20px;
-        padding: 20px;
-        background: linear-gradient(
-          135deg,
-          rgba(102, 126, 234, 0.05) 0%,
-          rgba(118, 75, 162, 0.05) 100%
-        );
-        border-radius: 10px;
-      }
-
-      .stat-item {
-        text-align: center;
-      }
-
-      .stat-value {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: #667eea;
-        display: block;
-      }
-
-      .stat-label {
-        font-size: 0.85rem;
-        color: var(--text-secondary);
-        margin-top: 5px;
-      }
-
-      /* Empty State */
-      .empty-state {
-        text-align: center;
-        padding: 60px 20px;
-        color: var(--text-muted);
-      }
-
-      .empty-state-icon {
-        font-size: 64px;
-        margin-bottom: 20px;
-        opacity: 0.5;
-      }
-
-      .empty-state h3 {
-        color: var(--text-secondary);
-        margin-bottom: 10px;
-      }
-
-      /* Animations */
-      @keyframes slideIn {
-        from {
-          opacity: 0;
-          transform: translateX(-20px);
-        }
-        to {
-          opacity: 1;
-          transform: translateX(0);
-        }
-      }
-
-      /* Loading */
-      .loading-spinner {
-        border: 3px solid rgba(102, 126, 234, 0.3);
-        border-top: 3px solid #667eea;
-        border-radius: 50%;
-        width: 30px;
-        height: 30px;
-        animation: spin 0.8s linear infinite;
-        margin: 20px auto;
-      }
-
-      @keyframes spin {
-        0% {
-          transform: rotate(0deg);
-        }
-        100% {
-          transform: rotate(360deg);
-        }
-      }
-
-      /* Buttons */
-      .btn {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        padding: 12px 25px;
-        border-radius: 8px;
-        font-size: 16px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: all 0.3s;
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
-      }
-
-      .btn:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-        transform: none;
-      }
-
-      .btn-secondary {
-        background: var(--bg-secondary);
-        color: var(--text-primary);
-      }
-
-      .btn-secondary:hover {
-        background: var(--bg-hover);
-        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
-      }
-
-      .btn-danger {
-        background: linear-gradient(135deg, #ff6b6b, #ff5252);
-      }
-
-      /* Semantic Search Box */
-      .semantic-search {
-        background: linear-gradient(
-          135deg,
-          rgba(102, 126, 234, 0.1) 0%,
-          rgba(118, 75, 162, 0.1) 100%
-        );
-        padding: 20px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-      }
-
-      .semantic-search h4 {
-        color: #667eea;
-        margin-bottom: 10px;
-        font-size: 1.1rem;
-      }
-
-      .semantic-search textarea {
-        width: 100%;
-        padding: 12px;
-        border: 2px solid var(--border-color);
-        border-radius: 8px;
-        font-size: 15px;
-        resize: vertical;
-        min-height: 80px;
-        font-family: inherit;
-        background: var(--bg-card);
-        color: var(--text-primary);
-      }
-
-      .semantic-search textarea:focus {
-        outline: none;
-        border-color: var(--border-focus);
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-      }
-      .similarity-badge {
-        position: absolute;
-        top: 15px;
-        left: 15px;
-        background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
-        padding: 4px 10px;
-        border-radius: 12px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        z-index: 1;
-      }
-
-      /* Estilos do Drawer */
-      .drawer-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.6);
-        z-index: 1000;
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity 0.3s ease, visibility 0.3s ease;
-      }
-      .drawer-overlay.active {
-        opacity: 1;
-        visibility: visible;
-      }
-      .drawer-panel {
-        position: fixed;
-        top: 0;
-        right: -50%;
-        width: 50%;
-        height: 100%;
-        background-color: var(--bg-card);
-        box-shadow: -5px 0 15px rgba(0,0,0,0.2);
-        z-index: 1001;
-        transition: right 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-        display: flex;
-        flex-direction: column;
-      }
-      .drawer-panel.active {
-        right: 0;
-      }
-      .drawer-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 15px 20px;
-        border-bottom: 1px solid var(--border-color);
-      }
-      .drawer-header h3 {
-        margin: 0;
-        font-size: 1.2rem;
-      }
-      .drawer-close {
-        background: none;
-        border: none;
-        font-size: 2rem;
-        cursor: pointer;
-        color: var(--text-secondary);
-      }
-      .drawer-content {
-        padding: 20px;
-        overflow-y: auto;
-        flex-grow: 1;
-      }
-
-      @media (max-width: 768px) {
-        .drawer-panel {
-          width: 85%;
-          right: -85%;
-        }
-      }
-    </style>
   </head>
   <body>
     <nav class="navbar">
@@ -597,7 +18,13 @@
           <button onclick="window.location.href='painel.html'" class="btn-back">
             ← Voltar ao Painel
           </button>
-          <button class="theme-toggle" id="themeToggle">🌓</button>
+          <!-- Botão de Tema padronizado (sem conteúdo – o JS injeta o ícone) -->
+          <button
+            class="theme-toggle"
+            id="themeToggle"
+            title="Alternar tema"
+            type="button"
+          ></button>
         </div>
       </div>
     </nav>
@@ -609,6 +36,7 @@
       </div>
 
       <div class="biblioteca-grid">
+        <!-- Coluna Upload -->
         <div class="card upload-section">
           <h3 style="margin-bottom: 20px">📤 Adicionar Material</h3>
 
@@ -626,6 +54,7 @@
               <span class="format-badge">TXT</span>
             </div>
           </div>
+
           <input
             type="file"
             id="fileInput"
@@ -659,6 +88,7 @@
           </div>
         </div>
 
+        <!-- Coluna Biblioteca -->
         <div class="card library-section">
           <h3 style="margin-bottom: 20px">📖 Seus Materiais</h3>
 
@@ -705,39 +135,22 @@
       </div>
     </div>
 
-    <script src="js/config.local.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/config.js"></script>
-    <script src="js/auth.js"></script>
-    <script src="js/biblioteca.js"></script>
-
-    <script>
-      document.addEventListener("DOMContentLoaded", () => {
-        const themeBtn = document.getElementById("themeToggle");
-        const body = document.body;
-
-        themeBtn.addEventListener("click", () => {
-          const novo =
-            body.getAttribute("data-theme") === "dark" ? "light" : "dark";
-          body.setAttribute("data-theme", novo);
-          localStorage.setItem("newnerd_theme", novo);
-        });
-
-        const salvo = localStorage.getItem("newnerd_theme");
-        if (salvo) body.setAttribute("data-theme", salvo);
-      });
-    </script>
-
-    <!-- Estrutura do Drawer -->
+    <!-- Drawer (Visualização de arquivos) -->
     <div id="drawerOverlay" class="drawer-overlay"></div>
     <div id="drawerPanel" class="drawer-panel">
       <div class="drawer-header">
         <h3 id="drawerTitle">Visualizar Arquivo</h3>
         <button id="drawerCloseBtn" class="drawer-close">&times;</button>
       </div>
-      <div id="drawerBody" class="drawer-content">
-        <!-- Conteúdo será injetado aqui -->
-      </div>
+      <div id="drawerBody" class="drawer-content"></div>
     </div>
+
+    <!-- Scripts (carregue o theme.js uma única vez) -->
+    <script src="js/theme.js"></script>
+    <script src="js/config.local.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/biblioteca.js"></script>
   </body>
 </html>

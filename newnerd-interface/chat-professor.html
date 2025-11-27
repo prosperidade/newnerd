@@ -5,9 +5,11 @@
     <title>Chat Professor | New Nerd</title>
     <link rel="stylesheet" href="css/style.css" />
     <style>
-      /* Ajustes específicos do widget para sobrescrever o style.css se necessário */
+      /* Widget no mesmo estilo do aluno */
       body {
         background: transparent;
+        padding: 0;
+        margin: 0;
         overflow: hidden;
         font-family: "Segoe UI", sans-serif;
       }
@@ -21,75 +23,115 @@
         display: flex;
         flex-direction: column;
         padding: 15px;
-        background: white;
+        background: var(--bg-card);
       }
-
       .widget-header {
         display: flex;
         align-items: center;
         gap: 10px;
         padding-bottom: 15px;
-        border-bottom: 1px solid #eee;
+        border-bottom: 1px solid var(--border-color);
         margin-bottom: 10px;
       }
       .mensagens {
         flex: 1;
         overflow-y: auto;
         padding-right: 5px;
+        margin-bottom: 10px;
         display: flex;
         flex-direction: column;
         gap: 10px;
       }
-
       .msg {
-        padding: 10px 15px;
-        border-radius: 12px;
+        padding: 12px 16px;
+        border-radius: 15px;
         max-width: 85%;
-        font-size: 0.95rem;
+        font-size: 15px;
         line-height: 1.5;
         word-wrap: break-word;
+        position: relative;
       }
       .msg.usuario {
         align-self: flex-end;
-        background: #4facfe;
+        background: var(--primary-color);
         color: white;
         border-bottom-right-radius: 2px;
+        box-shadow: 0 2px 5px rgba(102, 126, 234, 0.2);
       }
       .msg.ia {
         align-self: flex-start;
-        background: #f0f2f5;
-        color: #333;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
         border-bottom-left-radius: 2px;
       }
       .msg.digitando {
         background: transparent;
-        color: #999;
+        border: none;
+        color: var(--text-muted);
+        padding: 0;
+        margin-left: 10px;
         font-style: italic;
-        font-size: 0.8rem;
+        font-size: 12px;
       }
-
       .input-area {
         margin-top: auto;
         display: flex;
         gap: 10px;
         padding-top: 10px;
-        border-top: 1px solid #eee;
+        border-top: 1px solid var(--border-color);
       }
       .input-msg {
         flex: 1;
-        padding: 10px;
-        border: 1px solid #ddd;
-        border-radius: 20px;
+        height: 55px;
+        padding: 0 15px;
+        border: 2px solid var(--primary-color);
+        border-radius: 12px;
+        font-weight: 700;
+        color: var(--text-primary);
+        background: var(--bg-secondary);
+        font-family: inherit;
         outline: none;
+        font-size: 15px;
       }
-      .btn-chat {
-        padding: 8px 16px;
-        border-radius: 20px;
-        background: #4facfe;
+      .input-msg:focus {
+        background: var(--bg-card);
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+      }
+      .btn {
+        height: 55px;
+        padding: 0 20px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
+        font-weight: 800;
         border: none;
         cursor: pointer;
-        font-weight: bold;
+        transition: 0.2s;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+      .btn:hover {
+        transform: translateY(-2px);
+      }
+      /* Chat Professor – compactar botão e liberar espaço pro input */
+      .chat-ia-container .input-area {
+        display: flex;
+        gap: 10px;
+      }
+
+      .chat-ia-container .input-area .input-msg {
+        flex: 1 1 auto;
+        min-width: 0; /* evita o input ser espremido */
+      }
+
+      .chat-ia-container .input-area .btn {
+        flex: 0 0 120px !important; /* ~metade da largura que estava */
+        width: 120px !important;
+        min-width: 120px !important; /* override do min-width global */
+        max-width: 120px !important;
+        padding: 0 12px;
+        height: 55px; /* alinha com o input */
+        font-size: 14px; /* opcional: deixa mais enxuto */
       }
     </style>
   </head>
@@ -99,10 +141,12 @@
         <div class="widget-header">
           <div style="font-size: 24px">👨‍🏫</div>
           <div>
-            <h3 style="margin: 0; color: #333; font-size: 1rem">
+            <h3 style="margin: 0; color: var(--primary-color)">
               Assistente Pedagógico
             </h3>
-            <span style="font-size: 11px; color: #2ecc71">● Online</span>
+            <span style="font-size: 12px; color: var(--success-color)"
+              >● Online</span
+            >
           </div>
         </div>
 
@@ -113,16 +157,16 @@
             type="text"
             id="inputMsg"
             class="input-msg"
-            placeholder="Planejamento, ideias..."
+            placeholder="Planejamento, ideias, rubricas, BNCC..."
             autocomplete="off"
           />
-          <button class="btn-chat" id="btnEnviar">Enviar</button>
+          <button onclick="enviarMensagem()" class="btn">Enviar</button>
         </div>
       </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/config.local.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/config.js"></script>
     <script src="js/chat-ia-professor.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>

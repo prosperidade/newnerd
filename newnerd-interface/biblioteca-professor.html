@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Biblioteca do Professor - NEW NERD</title>
     <link rel="stylesheet" href="css/biblioteca-prof.css" />
+    <!-- Carregue o Supabase JS antes do config.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   </head>
 
   <body>
@@ -78,7 +80,7 @@
           </div>
         </div>
 
-        <!-- Library -->
+        <!-- Biblioteca -->
         <div class="card library-section">
           <h3 style="margin-bottom: 20px">📖 Seus Materiais</h3>
 
@@ -124,40 +126,40 @@
       </div>
     </div>
 
+    <!-- Drawer (Visualização de arquivos) -->
     <div id="drawerOverlay" class="drawer-overlay"></div>
     <div id="drawerPanel" class="drawer-panel">
       <div class="drawer-header">
-        <h3 id="drawerTitle">Visualizar Ficheiro</h3>
+        <h3 id="drawerTitle">Visualizar Arquivo</h3>
         <button id="drawerCloseBtn" class="drawer-close">&times;</button>
       </div>
       <div id="drawerBody" class="drawer-content"></div>
     </div>
 
-    <button id="themeToggle" class="theme-toggle"></button>
+    <!-- Botão universal de tema -->
+    <button
+      id="themeToggle"
+      class="theme-toggle"
+      type="button"
+      title="Alternar tema"
+    ></button>
 
-    <!-- PDF.js (versão correta, compatível com pdfjsLib) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-    <script>
-      pdfjsLib.GlobalWorkerOptions.workerSrc =
-        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
-    </script>
+    <script src="js/theme.js" defer></script>
 
-    <!-- DOCX -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js"></script>
-
-    <!-- CONFIG -->
-    <script src="js/config.js"></script>
-
-    <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-    <!-- Local Storage -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+      // Configura o worker do PDF.js (necessário para funcionar)
+      if (window.pdfjsLib) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      }
+    </script>
+    <script src="js/config.js"></script>
     <script src="js/storage.js"></script>
-
-    <!-- Supabase Helper -->
     <script src="js/supabase.js"></script>
-
-    <!-- Biblioteca -->
-    <script src="js/biblioteca-professor.js"></script>
+    <script type="module" src="js/biblioteca-professor.js"></script>
   </body>
 </html>

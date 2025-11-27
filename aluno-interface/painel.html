@@ -42,119 +42,82 @@
         </div>
       </div>
 
-   <div class="dashboard-grid">
-  <div class="main-actions">
-    <div class="content-box">
-      <h3 class="section-title">O que vamos estudar?</h3>
-      <div class="questoes-grid">
-        
-        <div class="action-card" onclick="window.location.href='biblioteca.html'">
-          <div class="action-icon">📚</div>
-          <h3>Biblioteca</h3>
-          <p>Envie PDFs e estude.</p>
+      <div class="dashboard-grid">
+        <div class="main-actions">
+          <div class="content-box">
+            <h3 class="section-title">O que vamos estudar?</h3>
+            <div class="questoes-grid">
+              <div
+                class="action-card"
+                onclick="window.location.href='biblioteca.html'"
+              >
+                <div class="action-icon">📚</div>
+                <h3>Biblioteca</h3>
+                <p>Envie PDFs e estude.</p>
+              </div>
+
+              <div
+                class="action-card"
+                onclick="window.location.href='diagnostico.html'"
+              >
+                <div class="action-icon">🧠</div>
+                <h3>Diagnóstico</h3>
+                <p>Descubra seus pontos fortes.</p>
+              </div>
+
+              <div
+                class="action-card"
+                onclick="window.location.href='questao.html'"
+              >
+                <div class="action-icon">📝</div>
+                <h3>Questões</h3>
+                <p>Pratique exercícios.</p>
+              </div>
+
+              <div
+                class="action-card"
+                onclick="window.location.href='contestacoes.html'"
+              >
+                <div class="action-icon">⚖️</div>
+                <h3>Contestações</h3>
+                <p>Revise suas notas.</p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div class="action-card" onclick="window.location.href='diagnostico.html'">
-          <div class="action-icon">🧠</div>
-          <h3>Diagnóstico</h3>
-          <p>Descubra seus pontos fortes.</p>
+        <div class="sidebar">
+          <div class="content-box">
+            <h3 class="section-title">Atividade Recente</h3>
+            <div
+              class="feedback-box"
+              style="text-align: center; background: transparent"
+            >
+              <p style="font-size: 0.9rem; color: var(--text-muted)">
+                Nenhuma atividade recente encontrada.
+              </p>
+              <div style="font-size: 40px; margin-top: 20px; opacity: 0.5">
+                🕒
+              </div>
+            </div>
+          </div>
         </div>
-
-        <div class="action-card" onclick="window.location.href='questao.html'">
-          <div class="action-icon">📝</div>
-          <h3>Questões</h3>
-          <p>Pratique exercícios.</p>
-        </div>
-
-        <div class="action-card" onclick="window.location.href='contestacoes.html'">
-          <div class="action-icon">⚖️</div>
-          <h3>Contestações</h3>
-          <p>Revise suas notas.</p>
-        </div>
-
       </div>
     </div>
-  </div>
 
-  <div class="sidebar">
-    <div class="content-box">
-      <h3 class="section-title">Atividade Recente</h3>
-      <div class="feedback-box" style="text-align: center; background: transparent">
-        <p style="font-size: 0.9rem; color: var(--text-muted)">
-          Nenhuma atividade recente encontrada.
-        </p>
-        <div style="font-size: 40px; margin-top: 20px; opacity: 0.5">🕒</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-    <button class="theme-toggle" id="themeToggle" title="Mudar Tema">☀️</button>
     <button
-      class="chat-widget-btn"
-      onclick="toggleChat()"
-      title="Falar com New Nerd"
-    >
-      🤖
-    </button>
-    <div class="chat-modal" id="chatModal">
-      <iframe
-        src="chat-aluno.html"
-        class="chat-frame"
-        style="width: 100%; height: 100%; border: none"
-      ></iframe>
-    </div>
+      id="themeToggle"
+      class="theme-toggle"
+      type="button"
+      title="Alternar tema"
+    ></button>
+
+    <!-- Carregar por último -->
+    <script src="js/theme.js"></script>
 
     <script src="js/config.local.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/config.js"></script>
     <script src="js/auth.js"></script>
-
-    <script>
-      document.addEventListener("DOMContentLoaded", async () => {
-        // Auth e Stats
-        const aluno = await verificarAuth();
-        if (aluno) {
-          const nome = aluno.nome ? aluno.nome.split(" ")[0] : "Estudante";
-          document.getElementById("alunoNome").textContent = nome;
-          document.getElementById("saudacao").textContent = `Olá, ${nome}! 👋`;
-          carregarStats(aluno.id);
-        }
-
-        // Dark Mode Logic
-        const themeBtn = document.getElementById("themeToggle");
-        const body = document.body;
-
-        function updateIcon(theme) {
-          themeBtn.textContent = theme === "dark" ? "🌙" : "☀️";
-        }
-
-        themeBtn.addEventListener("click", () => {
-          const current = body.getAttribute("data-theme");
-          const novo = current === "dark" ? "light" : "dark";
-          body.setAttribute("data-theme", novo);
-          localStorage.setItem("newnerd_theme", novo);
-          updateIcon(novo);
-        });
-
-        const salvo = localStorage.getItem("newnerd_theme");
-        if (salvo) {
-          body.setAttribute("data-theme", salvo);
-          updateIcon(salvo);
-        }
-      });
-
-      async function carregarStats(id) {
-        const { count } = await window.supabaseClient
-          .from("respostas_alunos")
-          .select("*", { count: "exact", head: true })
-          .eq("aluno_id", id);
-        if (count) document.getElementById("statsQuestoes").textContent = count;
-      }
-
-      function toggleChat() {
-        document.getElementById("chatModal").classList.toggle("active");
-      }
-    </script>
   </body>
 </html>

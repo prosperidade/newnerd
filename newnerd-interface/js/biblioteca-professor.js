@@ -1,118 +1,36 @@
 /* ============================================================================
-   BIBLIOTECA DO PROFESSOR – VERSÃO REVISADA
-   Autenticação limpa (Supabase Auth real + modo dev)
-   Fluxo robusto, sem duplicações e sem risco de quebrar o sistema
+   BIBLIOTECA DO PROFESSOR (FINAL)
+   - Drawer Lateral RECUPERADO (Visualização de PDF, DOCX, TXT)
+   - Busca Semântica com FILTRO (Remove resultados ruins)
+   - Upload Híbrido (PDF baixa no server, DOCX/TXT envia texto)
 ============================================================================ */
+import { FileProcessor } from "./FileBiblioteca.js";
+import { UIManager } from "./UiBiblioteca.js";
 
 class BibliotecaProfessor {
   constructor() {
     console.log("📚 Inicializando BibliotecaProfessor...");
 
-    // ========================
-    // Supabase Client
-    // ========================
     if (!window.SupabaseClient || !window.SupabaseClient.init()) {
       alert("ERRO CRÍTICO: Falha ao carregar SupabaseClient.");
       return;
     }
-
     this.supa = window.SupabaseClient.client;
-
-    // ========================
-    // Configurações
-    // ========================
-    this.bucket = CONFIG.BUCKET_PROFESSOR || "newnerd_professores";
-    this.table = CONFIG.TABLE_ARQUIVOS_PROF || "arquivos_professor";
-
-    // Modo dev ainda permite PROFESSOR_ID legado
+    this.bucket =
+      (window.CONFIG && CONFIG.BUCKET_PROFESSOR) || "newnerd_professores";
+    this.table =
+      (window.CONFIG && CONFIG.TABLE_ARQUIVOS_PROF) || "arquivos_professor";
     this.professorId =
-      CONFIG.ENV === "dev" ? CONFIG.PROFESSOR_ID ?? null : null;
+      CONFIG?.ENV === "dev" ? CONFIG.PROFESSOR_ID ?? null : null;
 
-    // ========================
-    // Estado interno
-    // ========================
     this.docs = [];
     this.fileQueue = [];
 
-    // ========================
-    // DOM
-    // ========================
     this.cacheEls();
     this.bindEvents();
-
-    // Dark Mode opcional
-    this.initDarkMode?.();
-
-    // ========================
-    // Iniciar fluxo
-    // ========================
-    this.ensureAuth().then(() => {
-      this.loadDocuments();
-    });
+    this.ensureAuth().then(() => this.loadDocuments());
   }
 
-  /* ============================================================================
-     AUTENTICAÇÃO
-     ============================================================================
-     Regras:
-     - Se houver usuário logado → usa user.id como professorId
-     - Se NÃO houver usuário E estamos em DEV → tenta login fake
-     - Se NÃO houver usuário E estamos em PROD → REDIRECIONA para login
-  =========================================================================== */
-
-  async ensureAuth() {
-    console.log("🔐 Verificando autenticação do professor...");
-
-    const { data } = await this.supa.auth.getUser();
-    const user = data?.user;
-
-    if (user) {
-      this.professorId = user.id;
-      console.log("🔐 Professor autenticado:", this.professorId);
-      return;
-    }
-
-    // =============================
-    // MODO DEV — LOGIN FAKE
-    // =============================
-    if (
-      CONFIG.ENV === "dev" &&
-      CONFIG.TESTE_EMAIL &&
-      CONFIG.TESTE_SENHA &&
-      !this.professorId
-    ) {
-      console.warn("⚠️ Modo DEV: executando login fake...");
-      const { error } = await this.supa.auth.signInWithPassword({
-        email: CONFIG.TESTE_EMAIL,
-        password: CONFIG.TESTE_SENHA,
-      });
-
-      if (error) {
-        console.error("❌ Login fake falhou:", error.message);
-        alert("Erro no login de teste: " + error.message);
-        return;
-      }
-
-      const { data: data2 } = await this.supa.auth.getUser();
-      this.professorId = data2?.user?.id ?? null;
-
-      console.log("✅ Login fake dev bem-sucedido:", this.professorId);
-      return;
-    }
-
-    // =============================
-    // PRODUÇÃO — REDIRECIONA
-    // =============================
-    if (CONFIG.ENV === "prod") {
-      console.log("🔒 Sem login. Redirecionando para prof-login.html...");
-      window.location.href = "prof-login.html";
-      return;
-    }
-  }
-
-  /* ============================================================================
-     DOM
-  ============================================================================ */
   cacheEls() {
     this.els = {
       dropZone: document.getElementById("dropZone"),
@@ -120,162 +38,127 @@ class BibliotecaProfessor {
       uploadQueue: document.getElementById("uploadQueue"),
       fileQueueList: document.getElementById("fileQueue"),
       uploadAllBtn: document.getElementById("uploadAllBtn"),
-
       searchInput: document.getElementById("searchInput"),
       semanticInput: document.getElementById("semanticSearch"),
       semanticBtn: document.getElementById("semanticBtn"),
       filterTabs: document.querySelectorAll(".filter-tab"),
-
       docsGrid: document.getElementById("documentsGrid"),
       totalDocs: document.getElementById("totalDocs"),
       totalSize: document.getElementById("totalSize"),
-
+      // Elementos do Drawer (Painel Lateral)
       drawerOverlay: document.getElementById("drawerOverlay"),
       drawerPanel: document.getElementById("drawerPanel"),
       drawerTitle: document.getElementById("drawerTitle"),
       drawerBody: document.getElementById("drawerBody"),
       drawerCloseBtn: document.getElementById("drawerCloseBtn"),
-
-      darkModeToggle: document.getElementById("themeToggle"),
     };
   }
 
   bindEvents() {
-    const dz = this.els.dropZone;
-    const fi = this.els.fileInput;
+    const {
+      dropZone,
+      fileInput,
+      uploadAllBtn,
+      semanticBtn,
+      searchInput,
+      filterTabs,
+      drawerCloseBtn,
+      drawerOverlay,
+    } = this.els;
 
-    if (dz && fi) {
-      dz.addEventListener("click", () => fi.click());
-      dz.addEventListener("dragover", (e) => e.preventDefault());
-      dz.addEventListener("dragenter", () => dz.classList.add("dragover"));
-      dz.addEventListener("dragleave", () => dz.classList.remove("dragover"));
-      dz.addEventListener("drop", (e) => {
+    if (dropZone && fileInput) {
+      dropZone.addEventListener("click", () => fileInput.click());
+      dropZone.addEventListener("dragover", (e) => e.preventDefault());
+      dropZone.addEventListener("drop", (e) => {
         e.preventDefault();
-        dz.classList.remove("dragover");
         this.addFiles(Array.from(e.dataTransfer.files));
       });
-
-      fi.addEventListener("change", (e) =>
+      fileInput.addEventListener("change", (e) =>
         this.addFiles(Array.from(e.target.files))
       );
     }
 
-    if (this.els.uploadAllBtn)
-      this.els.uploadAllBtn.addEventListener("click", () => this.uploadAll());
-
-    if (this.els.searchInput)
-      this.els.searchInput.addEventListener(
+    if (uploadAllBtn)
+      uploadAllBtn.addEventListener("click", () => this.uploadAll());
+    if (semanticBtn)
+      semanticBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        this.performSemanticSearch();
+      });
+    if (searchInput)
+      searchInput.addEventListener(
         "input",
         this.debounce((e) => this.handleSearch(e.target.value), 250)
       );
 
-    if (this.els.filterTabs?.length)
-      this.els.filterTabs.forEach((tab) =>
-        tab.addEventListener("click", () => {
-          this.els.filterTabs.forEach((t) => t.classList.remove("active"));
-          tab.classList.add("active");
-          this.applyTypeFilter(tab.getAttribute("data-type"));
-        })
-      );
+    filterTabs?.forEach((tab) =>
+      tab.addEventListener("click", () => {
+        filterTabs.forEach((t) => t.classList.remove("active"));
+        tab.classList.add("active");
+        this.applyTypeFilter(tab.getAttribute("data-type"));
+      })
+    );
 
-    if (this.els.semanticBtn)
-      this.els.semanticBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.performSemanticSearch();
-      });
-
-    if (this.els.drawerOverlay)
-      this.els.drawerOverlay.addEventListener("click", () =>
-        this.closePreviewDrawer()
-      );
-
-    if (this.els.drawerCloseBtn)
-      this.els.drawerCloseBtn.addEventListener("click", () =>
-        this.closePreviewDrawer()
-      );
-
-    if (this.els.darkModeToggle)
-      this.els.darkModeToggle.addEventListener("click", () =>
-        this.toggleDarkMode?.()
-      );
+    // Eventos do Drawer
+    drawerCloseBtn?.addEventListener("click", () => this.closePreviewDrawer());
+    drawerOverlay?.addEventListener("click", () => this.closePreviewDrawer());
   }
 
-  /* ============================================================================
-     ARQUIVOS – ADD / UPLOAD
-  ============================================================================ */
+  async ensureAuth() {
+    const { data } = await this.supa.auth.getUser();
+    if (data?.user) {
+      this.professorId = data.user.id;
+      return;
+    }
+    if (CONFIG?.ENV === "dev" && CONFIG.TESTE_EMAIL) {
+      await this.supa.auth.signInWithPassword({
+        email: CONFIG.TESTE_EMAIL,
+        password: CONFIG.TESTE_SENHA,
+      });
+      const { data: d2 } = await this.supa.auth.getUser();
+      this.professorId = d2?.user?.id;
+    }
+  }
+
+  // --- Upload Logic ---
   addFiles(files) {
-    if (!files?.length) return;
-
-    let novos = 0;
-
     files.forEach((file) => {
-      const duplicadoFila = this.fileQueue.some(
-        (f) => f.file.name === file.name && f.file.size === file.size
-      );
-
-      const duplicadoBiblioteca = this.docs.some(
-        (d) => d.nome_original === file.name && d.tamanho_bytes === file.size
-      );
-
-      if (duplicadoFila) return;
-      if (duplicadoBiblioteca) {
-        this.toast(`"${file.name}" já existe na biblioteca.`, "warning");
-        return;
-      }
-
       this.fileQueue.push({
         id: `f_${Date.now()}_${Math.random().toString(36).slice(2)}`,
         file,
         status: "pendente",
       });
-
-      novos++;
     });
-
-    if (novos > 0) {
-      this.updateQueueUI();
-      if (this.els.uploadQueue) this.els.uploadQueue.style.display = "block";
-    }
+    this.updateQueueUI();
+    if (this.els.uploadQueue) this.els.uploadQueue.style.display = "block";
   }
 
   updateQueueUI() {
     if (!this.els.fileQueueList) return;
-
     this.els.fileQueueList.innerHTML = this.fileQueue
       .map(
         (item) => `
-      <div class="file-item" data-id="${item.id}">
+      <div class="file-item">
         <div class="file-icon">📄</div>
         <div class="file-info">
-          <div class="file-name">${this.escapeHtml(item.file.name)}</div>
-          <div class="file-meta">${this.formatSize(item.file.size)}</div>
+          <div class="file-name">${UIManager.escapeHtml(item.file.name)}</div>
+          <div class="file-meta">${UIManager.formatSize(item.file.size)}</div>
         </div>
-        <div class="file-status">${this.statusBadge(item.status)}</div>
-      </div>
-    `
+        <div class="file-status">${UIManager.statusBadge(item.status)}</div>
+      </div>`
       )
       .join("");
   }
 
   async uploadAll() {
-    if (!this.professorId) {
-      await this.ensureAuth();
-      if (!this.professorId) {
-        this.toast("Professor não autenticado.", "error");
-        return;
-      }
-    }
-
+    if (!this.professorId) await this.ensureAuth();
     const pendentes = this.fileQueue.filter((i) => i.status === "pendente");
     if (!pendentes.length) return;
 
     this.els.uploadAllBtn.disabled = true;
-
-    for (const item of pendentes) {
-      await this.uploadOne(item);
-    }
-
+    for (const item of pendentes) await this.uploadOne(item);
     this.els.uploadAllBtn.disabled = false;
+
     this.fileQueue = [];
     this.updateQueueUI();
     await this.loadDocuments();
@@ -283,349 +166,297 @@ class BibliotecaProfessor {
 
   async uploadOne(item) {
     try {
-      if (!this.professorId) throw new Error("Professor não autenticado.");
-
       item.status = "uploading";
       this.updateQueueUI();
 
-      const clean = item.file.name.replace(/[^\w.\-() ]+/g, "_");
-      const path = `${this.professorId}/${Date.now()}_${clean}`;
+      const cleanName = item.file.name.replace(/[^\w.\-() ]+/g, "_");
+      const path = `${this.professorId}/${Date.now()}_${cleanName}`;
 
-      // 1) Upload
       const { error: upErr } = await this.supa.storage
         .from(this.bucket)
-        .upload(path, item.file, {
-          contentType: item.file.type || "application/octet-stream",
-        });
-
+        .upload(path, item.file);
       if (upErr) throw upErr;
 
-      // 2) Metadados
-      const meta = {
-        professor_id: this.professorId,
-        path,
-        nome_original: item.file.name,
-        mime_type: item.file.type || null,
-        tamanho_bytes: item.file.size || null,
-        status: "uploaded",
-      };
-
-      const { error: dbErr } = await this.supa.from(this.table).insert(meta);
-
+      const { data: inserted, error: dbErr } = await this.supa
+        .from(this.table)
+        .insert({
+          professor_id: this.professorId,
+          caminho: path,
+          titulo: item.file.name,
+          nome_original: item.file.name,
+          tipo_arquivo:
+            item.file.type ||
+            FileProcessor.guessMimeByExtension(item.file.name),
+          tamanho_bytes: item.file.size,
+          status: "uploaded",
+          metadata: { origem: "web", ext: FileProcessor.ext(item.file.name) },
+        })
+        .select()
+        .single();
       if (dbErr) throw dbErr;
 
-      // 3) Extração + embeddings
       item.status = "processing";
       this.updateQueueUI();
 
-      const text = await this.tryExtractText(item.file);
-      if (text) {
-        await this.sendEmbeddings(path, text, item.file.name);
-      }
+      const text = await FileProcessor.tryExtractText(item.file);
+      await this.sendEmbeddings(path, text);
 
-      // 4) Finaliza
       await this.supa
         .from(this.table)
         .update({ status: "ready" })
-        .eq("path", path);
-
+        .eq("id", inserted.id);
       item.status = "ready";
       this.updateQueueUI();
     } catch (e) {
-      console.error("❌ Upload falhou:", e);
+      console.error("Upload falhou:", e);
       item.status = "error";
       this.updateQueueUI();
-      this.toast(`Erro no upload: ${e.message || e}`, "error");
+      UIManager.toast(`Erro: ${e.message}`, "error");
     }
   }
 
-  async tryExtractText(file) {
+  async sendEmbeddings(path, extractedText) {
+    console.log(`📡 IA processando: ${path}`);
     try {
-      const mime = (file.type || "").toLowerCase();
-      const name = (file.name || "").toLowerCase();
-
-      const isText =
-        mime.startsWith("text/") || /\.txt$/i.test(name) || /\.md$/i.test(name);
-
-      const isPDF = mime.includes("pdf") || /\.pdf$/i.test(name);
-      const isDOCX =
-        mime.includes("word") ||
-        mime.includes("docx") ||
-        /\.docx?$/i.test(name);
-
-      if (isText) return await file.text();
-      if (isPDF) return await this._extrairTextoPDF(file);
-      if (isDOCX) return await this._extrairTextoDOCX(file);
-
-      return null;
-    } catch (e) {
-      console.warn("Falha ao extrair texto:", e);
-      return null;
-    }
-  }
-
-  async _extrairTextoPDF(file) {
-    try {
-      const arrayBuf = await file.arrayBuffer();
-
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
-
-      let texto = "";
-
-      for (let p = 1; p <= pdf.numPages; p++) {
-        const page = await pdf.getPage(p);
-        const content = await page.getTextContent();
-        const strings = content.items.map((i) => i.str).filter(Boolean);
-        texto += strings.join(" ") + "\n";
-      }
-
-      return texto.trim();
-    } catch (e) {
-      console.warn("Falha ao extrair texto de PDF:", e);
-      return null;
-    }
-  }
-
-  async _extrairTextoDOCX(file) {
-    try {
-      const arrayBuf = await file.arrayBuffer();
-      const result = await window.mammoth.extractRawText({
-        arrayBuffer: arrayBuf,
-      });
-
-      return (result.value || "").trim();
-    } catch (e) {
-      console.warn("Falha ao extrair texto de DOCX:", e);
-      return null;
-    }
-  }
-
-  async sendEmbeddings(path, text, fileName) {
-    try {
-      if (!CONFIG.EMBED_URL) return;
-
-      const chunkSize = 28000;
-      const chunks = [];
-
-      for (let i = 0; i < text.length; i += chunkSize) {
-        chunks.push(text.substring(i, i + chunkSize));
-      }
-
+      const isPDF = path.toLowerCase().endsWith(".pdf");
       const payload = {
-        professor_id: this.professorId,
-        origem: "prof_biblioteca",
-        chunks: chunks.map((c, idx) => ({
-          texto: c,
-          metadata: {
-            titulo: fileName,
-            caminho_arquivo: path,
-            chunk_numero: idx + 1,
-            total_chunks: chunks.length,
-            data_upload: new Date().toISOString(),
-          },
-        })),
+        record: { name: path, owner: this.professorId },
+        text: !isPDF && extractedText ? extractedText : null,
       };
 
-      const res = await fetch(CONFIG.EMBED_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify(payload),
+      const { data, error } = await this.supa.functions.invoke("embed", {
+        body: payload,
       });
+      if (error) throw error;
 
-      if (!res.ok) throw new Error(await res.text());
-
-      const out = await res.json();
-      console.log("📌 Embeddings enviados:", out);
+      if (data?.success) console.log("✅ Embedding OK");
+      else console.warn("⚠️ IA ignorou:", data);
     } catch (e) {
-      console.warn("Embedding falhou:", e);
+      console.error("Erro IA:", e);
     }
   }
 
-  /* ============================================================================
-     BUSCAS / FILTROS / LISTAS
-  ============================================================================ */
   async loadDocuments() {
-    try {
-      if (!this.professorId) return;
+    if (!this.professorId) return;
+    const { data } = await this.supa
+      .from(this.table)
+      .select("*")
+      .eq("professor_id", this.professorId)
+      .order("created_at", { ascending: false });
+    this.docs = data || [];
+    UIManager.renderDocs(this.docs, this.els.docsGrid);
+    if (this.els.totalDocs) this.els.totalDocs.textContent = this.docs.length;
+  }
 
-      const { data, error } = await this.supa
+  // --- BUSCA HÍBRIDA (IA + PALAVRA CHAVE) ---
+  async performSemanticSearch() {
+    const q = this.els.semanticInput.value.trim();
+    if (!q) {
+      UIManager.toast("Digite algo para buscar", "info");
+      return;
+    }
+
+    UIManager.toast("Buscando (Conteúdo + Título)...", "info");
+
+    try {
+      // Vamos rodar duas buscas em paralelo:
+      // 1. Busca Exata no Título (Banco de Dados)
+      const searchKeyword = this.supa
         .from(this.table)
         .select("*")
         .eq("professor_id", this.professorId)
-        .order("created_at", { ascending: false });
+        .or(`titulo.ilike.%${q}%,nome_original.ilike.%${q}%`) // Busca no nome
+        .limit(5);
 
-      if (error) throw error;
+      // 2. Busca Semântica no Conteúdo (IA / Edge Function)
+      const searchAI = this.supa.functions.invoke("semantic-search", {
+        body: {
+          query: q,
+          professor_id: this.professorId,
+          match_count: 10,
+          match_threshold: 0.4, // Baixei um pouco para ser mais tolerante
+        },
+      });
 
-      this.docs = data || [];
-      this.renderDocs(this.docs);
-      this.updateStats();
-    } catch (e) {
-      console.error("Falha ao carregar documentos:", e);
-      this.toast("Erro ao carregar documentos.", "error");
-    }
-  }
+      // Aguarda as duas terminarem
+      const [resKeyword, resAI] = await Promise.all([searchKeyword, searchAI]);
 
-  renderDocs(list) {
-    if (!this.els.docsGrid) return;
+      // --- PROCESSAR RESULTADOS DA PALAVRA-CHAVE (TÍTULO) ---
+      let docsKeyword = [];
+      if (resKeyword.data) {
+        docsKeyword = resKeyword.data.map((d) => ({
+          ...d,
+          score_final: 1.0, // Título exato ganha nota máxima (100%)
+          origem: "Título", // Etiqueta para sabermos de onde veio
+          chunk_texto: d.texto_extraido || "Encontrado pelo título do arquivo.",
+        }));
+      }
 
-    if (!list?.length) {
-      this.els.docsGrid.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-state-icon">📭</div>
-          <h3>Nenhum documento ainda</h3>
-          <p>Faça upload para começar</p>
-        </div>`;
-      return;
-    }
+      // --- PROCESSAR RESULTADOS DA IA (CONTEÚDO) ---
+      let docsAI = [];
+      if (resAI.data && resAI.data.results) {
+        docsAI = resAI.data.results.map((r) => ({
+          ...r,
+          titulo:
+            r.metadata?.titulo ||
+            r.metadata?.nome_original ||
+            "Documento Encontrado",
+          chunk_texto: r.content || "",
+          score_final: r.similarity,
+          origem: "Conteúdo",
+        }));
+      }
 
-    this.els.docsGrid.innerHTML = list
-      .map((doc) => {
-        const titulo = doc.nome_original || doc.path.split("/").pop();
-        return `
-          <div class="document-card">
-            <div class="document-type-icon">📄</div>
-            <div class="document-title">${this.escapeHtml(titulo)}</div>
-            <div class="document-excerpt">
-              ${this.formatSize(doc.tamanho_bytes)} • ${doc.mime_type}
-              ${this.statusBadge(doc.status)}
-            </div>
-            <div class="document-meta">
-              <button onclick="bibliotecaProfessor.preview('${
-                doc.path
-              }')">👁️</button>
-              <button onclick="bibliotecaProfessor.remove('${
-                doc.path
-              }')">🗑️</button>
-            </div>
-          </div>`;
-      })
-      .join("");
-  }
+      // --- UNIFICAR E REMOVER DUPLICATAS ---
+      // Criamos um Map usando o ID/Caminho como chave para não repetir arquivo
+      const mapaUnico = new Map();
 
-  renderSemanticResults(list) {
-    if (!this.els.docsGrid) return;
-
-    if (!list?.length) {
-      this.els.docsGrid.innerHTML = `
-      <div class="empty-state">
-        <h3>Nenhum resultado</h3>
-        <p>Tente termos diferentes ou mais específicos</p>
-      </div>
-    `;
-      return;
-    }
-
-    // Ordena pelo score
-    list = [...list].sort(
-      (a, b) => (b.score_final || 0) - (a.score_final || 0)
-    );
-
-    this.els.docsGrid.innerHTML = list
-      .map((item) => {
-        const titulo =
-          item.metadata?.titulo ??
-          item.documento_path?.split("/").pop() ??
-          "(sem título)";
-
-        const snippet = (item.chunk_texto || "").slice(0, 200);
-        const score = item.score_final || 0;
-
-        // Classifica o score
-        let scoreClass = "low";
-        let scoreLabel = "Baixa";
-
-        if (score > 0.6) {
-          scoreClass = "high";
-          scoreLabel = "Alta";
-        } else if (score > 0.3) {
-          scoreClass = "medium";
-          scoreLabel = "Média";
+      // Adiciona primeiro os da IA
+      docsAI.forEach((doc) => {
+        const chave = doc.id || doc.caminho || doc.documento_path;
+        if (doc.score_final >= 0.45) {
+          // Filtro de qualidade da IA
+          mapaUnico.set(chave, doc);
         }
+      });
 
-        return `
-        <div class="document-card semantic ${scoreClass}-score">
-          <div class="document-type-icon">🧠</div>
+      // Adiciona os do Título (sobrescreve se já existir, pois título é relevância 100%)
+      docsKeyword.forEach((doc) => {
+        const chave = doc.id || doc.caminho;
+        // Se já existe, mantemos o objeto mais completo, mas forçamos score alto
+        if (mapaUnico.has(chave)) {
+          const existente = mapaUnico.get(chave);
+          existente.score_final = 1.0; // Upgrade no score
+          existente.origem = "Título + Conteúdo";
+        } else {
+          mapaUnico.set(chave, doc);
+        }
+      });
 
-          <div class="document-title">${this.escapeHtml(titulo)}</div>
-
-          <div class="document-excerpt">
-            ${this.escapeHtml(snippet)}...
-            <div class="semantic-score ${scoreClass}">
-             ${scoreLabel}: ${(score * 100).toFixed(0)}%
-            </div>
-          </div>
-
-          <div class="document-meta">
-            <button onclick="bibliotecaProfessor.preview('${
-              item.documento_path
-            }')">👁️ Ver</button>
-          </div>
-        </div>
-      `;
-      })
-      .join("");
-  }
-
-  updateStats() {
-    if (this.els.totalDocs) this.els.totalDocs.textContent = this.docs.length;
-
-    if (this.els.totalSize) {
-      const total = this.docs.reduce(
-        (sum, d) => sum + (d.tamanho_bytes || 0),
-        0
+      // Converte de volta para array e ordena por relevância
+      const resultadosFinais = Array.from(mapaUnico.values()).sort(
+        (a, b) => b.score_final - a.score_final
       );
-      this.els.totalSize.textContent = this.formatSize(total);
+
+      console.log("📊 Resultados Híbridos:", resultadosFinais);
+
+      if (resultadosFinais.length === 0) {
+        UIManager.toast("Nenhum documento encontrado.", "info");
+        this.els.docsGrid.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">🧐</div>
+                    <h3>Nada encontrado</h3>
+                    <p>Não achamos nem no título, nem no conteúdo.</p>
+                </div>`;
+        return;
+      }
+
+      // Renderiza
+      UIManager.renderDocs(resultadosFinais, this.els.docsGrid);
+      UIManager.toast(
+        `Encontrados ${resultadosFinais.length} resultados!`,
+        "success"
+      );
+    } catch (e) {
+      console.error("Erro Busca Híbrida:", e);
+      UIManager.toast("Erro ao buscar.", "error");
     }
   }
+  handleSearch(val) {
+    const q = val.toLowerCase();
+    const filtered = this.docs.filter((d) =>
+      (d.titulo || "").toLowerCase().includes(q)
+    );
+    UIManager.renderDocs(filtered, this.els.docsGrid);
+  }
 
-  /* ============================================================================
-     PREVIEW
-  ============================================================================ */
+  // --- REMOVER ---
+  async remove(path) {
+    if (!confirm("Apagar arquivo?")) return;
+    await this.supa.storage.from(this.bucket).remove([path]);
+    await this.supa.from(this.table).delete().eq("caminho", path);
+    this.loadDocuments();
+  }
+
+  // --- PREVIEW (DRAWER LATERAL RESTAURADO) ---
   async preview(path) {
     try {
       if (!path) return;
 
+      // Ativa o Drawer (CSS class 'active')
       this.els.drawerOverlay?.classList.add("active");
       this.els.drawerPanel?.classList.add("active");
+      this.els.drawerBody.innerHTML = "<p>Carregando...</p>"; // Loading state
 
-      const signed = await window.SupabaseClient.criarUrlAssinadaProfessor(
-        path
-      );
-      if (!signed) throw new Error("Não foi possível criar URL assinada");
+      // Gera URL assinada
+      const { data, error } = await this.supa.storage
+        .from(this.bucket)
+        .createSignedUrl(path, 3600);
+      if (error) throw error;
+      const signedUrl = data.signedUrl;
 
-      const { data: fileMeta } = await this.supa
-        .from(this.table)
-        .select("*")
-        .eq("path", path)
-        .limit(1);
-
-      const meta = fileMeta?.[0];
-      const title = meta?.nome_original ?? path.split("/").pop();
+      // Tenta pegar metadados locais para saber o título/tipo
+      const doc = this.docs.find((d) => d.caminho === path) || {};
+      const title = doc.titulo || doc.nome_original || path.split("/").pop();
       this.els.drawerTitle.textContent = title;
 
-      const mime = (meta?.mime_type || "").toLowerCase();
+      const mime = (doc.tipo_arquivo || "").toLowerCase();
+      const isPDF = mime.includes("pdf") || path.toLowerCase().endsWith(".pdf");
+      const isWord =
+        mime.includes("word") ||
+        mime.includes("docx") ||
+        path.toLowerCase().endsWith(".docx");
       const isText =
-        mime.startsWith("text/") ||
-        /\.txt$/i.test(title) ||
-        /\.md$/i.test(title);
+        mime.includes("text") || path.toLowerCase().endsWith(".txt");
 
-      if (isText) {
-        const resp = await fetch(signed);
-        const txt = await resp.text();
-        this.els.drawerBody.innerHTML = `<pre>${this.escapeHtml(txt)}</pre>`;
-        return;
+      // Renderiza baseado no tipo
+      if (isPDF) {
+        this.els.drawerBody.innerHTML = `
+          <iframe src="${signedUrl}" style="width:100%; height:85vh; border:none; background:#f5f5f5;"></iframe>
+          <div style="margin-top:10px; text-align:center;">
+             <a href="${signedUrl}" target="_blank" class="btn">Baixar PDF Original</a>
+          </div>
+        `;
+      } else if (isWord) {
+        // Usa Mammoth para converter DOCX -> HTML para visualização
+        if (window.mammoth) {
+          try {
+            const response = await fetch(signedUrl);
+            const arrayBuffer = await response.arrayBuffer();
+            const result = await window.mammoth.convertToHtml({
+              arrayBuffer: arrayBuffer,
+            });
+            this.els.drawerBody.innerHTML = `
+                    <div class="docx-content" style="padding:20px; background:white; min-height:50vh;">
+                        ${result.value}
+                    </div>
+                    <div style="margin-top:10px; text-align:center;">
+                        <a href="${signedUrl}" target="_blank" class="btn">Baixar DOCX</a>
+                    </div>`;
+          } catch (err) {
+            this.els.drawerBody.innerHTML = `<p>Erro ao visualizar DOCX. <a href="${signedUrl}" target="_blank">Baixar arquivo</a></p>`;
+          }
+        } else {
+          this.els.drawerBody.innerHTML = `<p>Visualizador indisponível. <a href="${signedUrl}" target="_blank">Baixar arquivo</a></p>`;
+        }
+      } else if (isText) {
+        const response = await fetch(signedUrl);
+        const text = await response.text();
+        this.els.drawerBody.innerHTML = `<pre style="background:#f4f4f4; padding:15px; overflow:auto;">${UIManager.escapeHtml(
+          text
+        )}</pre>`;
+      } else {
+        // Fallback genérico
+        this.els.drawerBody.innerHTML = `
+            <div style="text-align:center; padding:50px;">
+                <p>Pré-visualização não disponível para este formato.</p>
+                <a href="${signedUrl}" target="_blank" class="btn" style="margin-top:10px;">Baixar Arquivo</a>
+            </div>
+        `;
       }
-
-      this.els.drawerBody.innerHTML = `
-        <p>Pré-visualização indisponível.</p>
-        <a href="${signed}" target="_blank">Abrir / Baixar</a>
-      `;
     } catch (e) {
-      console.error("Preview falhou:", e);
-      this.els.drawerBody.innerHTML = "<p>Erro ao carregar preview.</p>";
+      console.error("Erro Preview:", e);
+      this.els.drawerBody.innerHTML = `<p>Erro ao carregar. Tente novamente.</p>`;
     }
   }
 
@@ -635,254 +466,38 @@ class BibliotecaProfessor {
     if (this.els.drawerBody) this.els.drawerBody.innerHTML = "";
   }
 
-  /* ============================================================================
-     REMOVER
-  ============================================================================ */
-  async remove(path) {
-    if (!confirm("Tem certeza que deseja apagar este documento?")) return;
-
-    const professorId = await SupabaseClient.getProfessorId();
-    if (!professorId) {
-      alert("Professor não autenticado.");
-      return;
-    }
-
-    console.log("🗑️ Apagando documento:", path);
-
-    const bucket = CONFIG.BUCKET_PROFESSOR || "newnerd_professores";
-
-    // 1) Apaga da storage
-    const { error: storageErr } = await SupabaseClient.client.storage
-      .from(bucket)
-      .remove([path]);
-
-    if (storageErr) {
-      console.error("❌ Erro ao apagar da storage:", storageErr);
-      alert("Erro ao apagar arquivo da storage.");
-      return;
-    }
-
-    // 2) Apaga da tabela arquivos_professor
-    const { error: dbErr1 } = await SupabaseClient.client
-      .from("arquivos_professor")
-      .delete()
-      .eq("caminho", path)
-      .eq("professor_id", professorId);
-
-    if (dbErr1) {
-      console.error("❌ Erro ao apagar da tabela arquivos_professor:", dbErr1);
-    }
-
-    // 3) Apaga embeddings associados
-    const { error: dbErr2 } = await SupabaseClient.client
-      .from("professor_embeddings")
-      .delete()
-      .eq("metadata->>caminho_arquivo", path)
-      .eq("professor_id", professorId);
-
-    if (dbErr2) {
-      console.error("❌ Erro ao apagar embeddings:", dbErr2);
-    }
-
-    // 4) Opcional — se existir: limpa tabela auxiliar
-    await SupabaseClient.client
-      .from("professor_embeddings_search")
-      .delete()
-      .eq("documento_path", path)
-      .eq("professor_id", professorId);
-
-    console.log("✅ Documento + embeddings apagados.");
-
-    await this.loadDocuments(); // recarrega lista
-    alert("Arquivo removido com sucesso.");
-  }
-
-  /* ============================================================================
-     BUSCA SIMPLES / SEMÂNTICA
-  ============================================================================ */
-  handleSearch(query) {
-    const q = (query || "").toLowerCase();
-    const filtrados = this.docs.filter((d) =>
-      (d.nome_original || "").toLowerCase().includes(q)
-    );
-    this.renderDocs(filtrados);
-  }
-
-  applyTypeFilter(type) {
-    if (!type || type === "all") {
-      this.renderDocs(this.docs);
-      return;
-    }
-
-    const filtrados = this.docs.filter((d) => {
-      const mime = (d.mime_type || "").toLowerCase();
-      return mime.includes(type);
-    });
-
-    this.renderDocs(filtrados);
-  }
-
-  // ============================================================================
-  // MÉTODO performSemanticSearch() - CORRIGIDO
-  // Cole isso no seu biblioteca-professor.js, substituindo o método existente
-  // ============================================================================
-
-  // ============================================================================
-  // MÉTODO performSemanticSearch() - CORRIGIDO
-  // Cole isso no seu biblioteca-professor.js, substituindo o método existente
-  // ============================================================================
-
-  async performSemanticSearch() {
-    try {
-      const query = (this.els.semanticInput.value || "").trim();
-      if (!query) {
-        this.toast("Digite algo para buscar.", "warning");
-        return;
-      }
-
-      // Validações
-      if (!this.professorId) {
-        this.toast("Professor não autenticado.", "error");
-        return;
-      }
-
-      // Verifica documentos
-      const { count: totalDocs } = await this.supa
-        .from(this.table)
-        .select("*", { count: "exact", head: true })
-        .eq("professor_id", this.professorId);
-
-      if (totalDocs === 0) {
-        this.toast("Você ainda não tem documentos na biblioteca.", "info");
-        return;
-      }
-
-      // Verifica embeddings
-      const { count: totalEmbeddings } = await this.supa
-        .from("professor_embeddings")
-        .select("*", { count: "exact", head: true })
-        .eq("professor_id", this.professorId)
-        .not("embedding", "is", null);
-
-      if (totalEmbeddings === 0) {
-        this.toast(
-          "Seus documentos ainda estão sendo processados. Aguarde alguns minutos.",
-          "warning"
-        );
-        return;
-      }
-
-      // Mostra loading
-      this.toast("Buscando com IA...", "info");
-
-      // 🔧 BUSCA COM THRESHOLD MAIS BAIXO PARA GARANTIR RESULTADOS
-      const resultados = await window.SupabaseClient.buscarSemanticaProfessor(
-        query,
-        this.professorId,
-        {
-          matchCount: 5,
-          matchThreshold: 0.0, // 🔥 THRESHOLD ZERO = RETORNA OS MAIS PRÓXIMOS
-        }
-      );
-
-      console.log("📊 Resultados da busca:", resultados);
-
-      if (!resultados || resultados.length === 0) {
-        this.toast(
-          "Nenhum resultado encontrado. Tente termos diferentes.",
-          "info"
-        );
-        this.renderDocs([]);
-        return;
-      }
-
-      // 🔧 FILTRA APENAS OS COM SCORE RAZOÁVEL (> 0.3)
-      const relevantes = resultados.filter((r) => (r.score_final || 0) > 0.3);
-
-      if (relevantes.length === 0) {
-        this.toast(
-          `Encontrados ${resultados.length} resultados, mas com baixa relevância. Tente termos mais específicos.`,
-          "warning"
-        );
-      } else {
-        this.toast(
-          `✅ Encontrados ${relevantes.length} resultados relevantes!`,
-          "success"
-        );
-      }
-
-      // Renderiza (mostra todos, mas destaca os relevantes)
-      this.renderSemanticResults(resultados);
-    } catch (e) {
-      console.error("❌ Busca semântica falhou:", e);
-      this.toast(`Erro na busca: ${e.message}`, "error");
-    }
-  }
-
-  /* ============================================================================
-     UTILITÁRIOS
-  ============================================================================ */
-  statusBadge(status) {
-    const map = {
-      pendente: "⏳ pendente",
-      uploading: "📤 enviando",
-      processing: "🧠 processando",
-      ready: "✅ pronto",
-      uploaded: "📦 enviado",
-      error: "❌ erro",
-    };
-    return `<span class="badge">${map[status] || status}</span>`;
-  }
-
-  escapeHtml(s) {
-    return (s || "").replace(/[&<>"']/g, (m) => {
-      return (
-        {
-          "&": "&amp;",
-          "<": "&lt;",
-          ">": "&gt;",
-          '"': "&quot;",
-          "'": "&#39;",
-        }[m] || m
-      );
-    });
-  }
-
-  formatSize(bytes) {
-    if (!bytes) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
-  }
-
-  debounce(fn, delay = 300) {
+  debounce(fn, d) {
     let t;
-    return (...args) => {
+    return (...a) => {
       clearTimeout(t);
-      t = setTimeout(() => fn.apply(this, args), delay);
+      t = setTimeout(() => fn.apply(this, a), d);
     };
-  }
-
-  toast(msg, type = "info") {
-    const icons = {
-      info: "ℹ️",
-      success: "✅",
-      error: "❌",
-      warning: "⚠️",
-    };
-    alert(`${icons[type] || "ℹ️"} ${msg}`);
   }
 }
 
-/* ============================================================================
-   BOOTSTRAP
-=========================================================================== */
-function initializeBiblioteca() {
-  if (typeof window !== "undefined") {
-    window.bibliotecaProfessor = new BibliotecaProfessor();
+// ============================================================================
+// INICIALIZAÇÃO ROBUSTA (Suporta modules)
+// ============================================================================
+function startApp() {
+  if (window.bibliotecaProfessor) return;
+
+  if (!window.SupabaseClient || !window.CONFIG) {
+    // Aguarda um pouco se as dependências ainda não carregaram
+    setTimeout(startApp, 100);
+    return;
   }
+
+  window.bibliotecaProfessor = new BibliotecaProfessor();
 }
 
-// A biblioteca só inicia DEPOIS que a configuração estiver pronta.
-document.addEventListener("configReady", initializeBiblioteca);
+// Tenta iniciar
+if (
+  document.readyState === "complete" ||
+  document.readyState === "interactive"
+) {
+  startApp();
+} else {
+  document.addEventListener("DOMContentLoaded", startApp);
+}
+// Backup: Ouvinte do config
+document.addEventListener("configReady", startApp);
