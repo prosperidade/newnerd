@@ -1,25 +1,35 @@
 /* ============================================================================
-   BIBLIOTECA DO PROFESSOR (FINAL - REVISADA)
+   BIBLIOTECA DO ALUNO (FINAL - VISUALIZAÇÃO CORRIGIDA)
+   - Agora com o mesmo Drawer avançado do Professor
+   - Lê PDF, DOCX (convertido), TXT, JSON, CSV visualmente
 ============================================================================ */
 import { FileProcessor } from "../../modules/FileBiblioteca.js";
 import { UIManager } from "../../modules/UiBiblioteca.js";
 
-class BibliotecaProfessor {
+class BibliotecaAluno {
   constructor() {
-    console.log("📚 Inicializando BibliotecaProfessor...");
+    console.log("🎒 Inicializando Biblioteca do Aluno...");
 
-    if (!window.SupabaseClient || !window.SupabaseClient.init()) {
-      alert("ERRO CRÍTICO: Falha ao carregar SupabaseClient.");
+    // Inicialização segura
+    if (!window.supabaseClient && window.supabase && window.CONFIG) {
+      window.supabaseClient = window.supabase.createClient(
+        CONFIG.SUPABASE_URL,
+        CONFIG.SUPABASE_ANON_KEY
+      );
+    }
+
+    if (!window.supabaseClient) {
+      console.warn("Aguardando Supabase...");
       return;
     }
-    this.supa = window.SupabaseClient.client;
-    this.bucket =
-      (window.CONFIG && CONFIG.BUCKET_PROFESSOR) || "newnerd_professores";
-    this.table =
-      (window.CONFIG && CONFIG.TABLE_ARQUIVOS_PROF) || "arquivos_professor";
-    this.professorId =
-      CONFIG?.ENV === "dev" ? CONFIG.PROFESSOR_ID ?? null : null;
 
+    this.supa = window.supabaseClient;
+
+    // Configurações
+    this.bucket = "alunos-biblioteca";
+    this.table = "aluno_documentos";
+
+    this.studentId = null;
     this.docs = [];
     this.fileQueue = [];
 
@@ -35,6 +45,7 @@ class BibliotecaProfessor {
       uploadQueue: document.getElementById("uploadQueue"),
       fileQueueList: document.getElementById("fileQueue"),
       uploadAllBtn: document.getElementById("uploadAllBtn"),
+      chooseBtn: document.getElementById("chooseBtn"),
       searchInput: document.getElementById("searchInput"),
       semanticInput: document.getElementById("semanticSearch"),
       semanticBtn: document.getElementById("semanticBtn"),
@@ -54,6 +65,7 @@ class BibliotecaProfessor {
     const {
       dropZone,
       fileInput,
+      chooseBtn,
       uploadAllBtn,
       semanticBtn,
       searchInput,
@@ -62,13 +74,21 @@ class BibliotecaProfessor {
       drawerOverlay,
     } = this.els;
 
-    if (dropZone && fileInput) {
-      dropZone.addEventListener("click", () => fileInput.click());
-      dropZone.addEventListener("dragover", (e) => e.preventDefault());
-      dropZone.addEventListener("drop", (e) => {
-        e.preventDefault();
-        this.addFiles(Array.from(e.dataTransfer.files));
-      });
+    if (fileInput) {
+      if (dropZone) {
+        dropZone.addEventListener("click", () => fileInput.click());
+        dropZone.addEventListener("dragover", (e) => e.preventDefault());
+        dropZone.addEventListener("drop", (e) => {
+          e.preventDefault();
+          this.addFiles(Array.from(e.dataTransfer.files));
+        });
+      }
+      if (chooseBtn) {
+        chooseBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          fileInput.click();
+        });
+      }
       fileInput.addEventListener("change", (e) =>
         this.addFiles(Array.from(e.target.files))
       );
@@ -87,14 +107,11 @@ class BibliotecaProfessor {
         this.debounce((e) => this.handleSearch(e.target.value), 250)
       );
 
-    // CORREÇÃO FILTRO: Garante que o clique chame a função corretamente
     filterTabs?.forEach((tab) =>
       tab.addEventListener("click", () => {
         filterTabs.forEach((t) => t.classList.remove("active"));
         tab.classList.add("active");
-        const tipo = tab.getAttribute("data-type");
-        console.log("Filtro clicado:", tipo); // Debug
-        this.applyTypeFilter(tipo);
+        this.applyTypeFilter(tab.getAttribute("data-type"));
       })
     );
 
@@ -105,16 +122,10 @@ class BibliotecaProfessor {
   async ensureAuth() {
     const { data } = await this.supa.auth.getUser();
     if (data?.user) {
-      this.professorId = data.user.id;
-      return;
-    }
-    if (CONFIG?.ENV === "dev" && CONFIG.TESTE_EMAIL) {
-      await this.supa.auth.signInWithPassword({
-        email: CONFIG.TESTE_EMAIL,
-        password: CONFIG.TESTE_SENHA,
-      });
-      const { data: d2 } = await this.supa.auth.getUser();
-      this.professorId = d2?.user?.id;
+      this.studentId = data.user.id;
+      console.log("🎓 Aluno autenticado:", this.studentId);
+    } else {
+      console.warn("⚠️ Aluno não logado.");
     }
   }
 
@@ -149,7 +160,7 @@ class BibliotecaProfessor {
   }
 
   async uploadAll() {
-    if (!this.professorId) await this.ensureAuth();
+    if (!this.studentId) await this.ensureAuth();
     const pendentes = this.fileQueue.filter((i) => i.status === "pendente");
     if (!pendentes.length) return;
 
@@ -168,20 +179,20 @@ class BibliotecaProfessor {
       this.updateQueueUI();
 
       const cleanName = item.file.name.replace(/[^\w.\-() ]+/g, "_");
-      const path = `${this.professorId}/${Date.now()}_${cleanName}`;
+      const path = `${this.studentId}/${Date.now()}_${cleanName}`;
 
-      // 1. Upload Storage
+      // 1. Storage
       const { error: upErr } = await this.supa.storage
         .from(this.bucket)
         .upload(path, item.file);
       if (upErr) throw upErr;
 
-      // 2. Insert Metadata
+      // 2. Banco
       const { data: inserted, error: dbErr } = await this.supa
         .from(this.table)
         .insert({
-          professor_id: this.professorId,
-          caminho: path,
+          aluno_id: this.studentId,
+          caminho_arquivo: path,
           titulo: item.file.name,
           nome_original: item.file.name,
           tipo_arquivo:
@@ -193,24 +204,30 @@ class BibliotecaProfessor {
         })
         .select()
         .single();
+
       if (dbErr) throw dbErr;
 
-      // 3. IA Processing (Extração Local)
+      // 3. IA
+      item.status = "processing";
+      this.updateQueueUI();
+
       const text = await FileProcessor.tryExtractText(item.file);
 
+      // SKIP lógico
       if (text === "SKIP_AI") {
-        console.log("⏩ Pulando IA para arquivo binário/zip.");
+        console.log("⏩ Pulando IA para arquivo binário.");
       } else {
-        item.status = "processing";
-        this.updateQueueUI();
-        // Aqui enviamos o texto extraído para a Edge Function
         await this.sendEmbeddings(path, text);
       }
 
-      await this.supa
-        .from(this.table)
-        .update({ status: "ready" })
-        .eq("id", inserted.id);
+      // 4. Update status
+      try {
+        await this.supa
+          .from(this.table)
+          .update({ status: "ready" })
+          .eq("id", inserted.id);
+      } catch (e) {}
+
       item.status = "ready";
       this.updateQueueUI();
     } catch (e) {
@@ -222,82 +239,63 @@ class BibliotecaProfessor {
   }
 
   async sendEmbeddings(path, extractedText) {
-    console.log(`📡 IA processando: ${path}`);
+    console.log(`📡 IA processando (Aluno): ${path}`);
     try {
       const isPDF = path.toLowerCase().endsWith(".pdf");
 
-      // SEGURANÇA DE PAYLOAD: Limita o tamanho do texto enviado para não estourar o limite da Edge Function
+      // Limite de segurança para envio de texto (30k chars)
       let textToSend = null;
       if (!isPDF && extractedText) {
-        textToSend = extractedText.slice(0, 30000); // 30k chars max para envio seguro
+        textToSend = extractedText.slice(0, 30000);
       }
 
       const payload = {
-        record: { name: path, owner: this.professorId },
-        text: textToSend, // Envia texto ou null (se for PDF)
+        record: {
+          name: path,
+          owner: this.studentId,
+          is_student: true,
+        },
+        text: textToSend,
       };
 
       const { data, error } = await this.supa.functions.invoke("embed", {
         body: payload,
       });
-      if (error) throw error;
 
+      if (error) throw error;
       if (data?.success) console.log("✅ Embedding OK");
       else console.warn("⚠️ IA ignorou:", data);
     } catch (e) {
       console.error("Erro IA:", e);
-      // Não damos alert aqui pois o upload físico já funcionou
     }
   }
 
   async loadDocuments() {
-    if (!this.professorId) return;
+    if (!this.studentId) return;
+
     const { data } = await this.supa
       .from(this.table)
       .select("*")
-      .eq("professor_id", this.professorId)
+      .eq("aluno_id", this.studentId)
       .order("created_at", { ascending: false });
+
     this.docs = data || [];
-    UIManager.renderDocs(this.docs, this.els.docsGrid, "bibliotecaProfessor");
+
+    const docsAdaptados = this.docs.map((d) => ({
+      ...d,
+      caminho: d.caminho_arquivo,
+      documento_path: d.caminho_arquivo,
+    }));
+
+    UIManager.renderDocs(docsAdaptados, this.els.docsGrid, "bibliotecaAluno");
     if (this.els.totalDocs) this.els.totalDocs.textContent = this.docs.length;
-  }
-
-  // --- FILTRO POR TIPO (CORRIGIDO PARA FUNCIONAR COM TODAS AS EXTENSÕES) ---
-  applyTypeFilter(type) {
-    if (!type || type === "all") {
-      this.loadDocuments();
-      return;
-    }
-
-    // Mapeamento de tipos para extensões reais
-    const map = {
-      pdf: [".pdf", "application/pdf"],
-      docx: [".doc", ".docx", "word"],
-      txt: [".txt", "text/plain", ".md"],
-      csv: [".csv"],
-      json: [".json"],
-      zip: [".zip", ".rar"],
-      audio: [".mp3", "audio/"],
-      video: [".mp4", "video/"],
-    };
-
-    const matchers = map[type] || [type]; // Se não tiver no mapa, usa o próprio tipo
-
-    const filtered = this.docs.filter((d) => {
-      const nome = (d.nome_original || d.titulo || "").toLowerCase();
-      const mime = (d.tipo_arquivo || "").toLowerCase();
-      // Verifica se alguma das extensões/mimes bate
-      return matchers.some((m) => nome.endsWith(m) || mime.includes(m));
-    });
-
-    UIManager.renderDocs(filtered, this.els.docsGrid, "bibliotecaProfessor");
   }
 
   // --- BUSCA HÍBRIDA ---
   async performSemanticSearch() {
     const q = this.els.semanticInput.value.trim();
     if (!q) {
-      UIManager.toast("Digite algo para buscar", "info");
+      UIManager.toast("Digite algo...", "info");
       return;
     }
 
@@ -307,14 +305,15 @@ class BibliotecaProfessor {
       const searchKeyword = this.supa
         .from(this.table)
         .select("*")
-        .eq("professor_id", this.professorId)
-        .or(`titulo.ilike.%${q}%,nome_original.ilike.%${q}%`)
+        .eq("aluno_id", this.studentId)
+        .ilike("titulo", `%${q}%`)
         .limit(5);
 
       const searchAI = this.supa.functions.invoke("semantic-search", {
         body: {
           query: q,
-          professor_id: this.professorId,
+          student_id: this.studentId,
+          is_student: true,
           match_count: 10,
           match_threshold: 0.4,
         },
@@ -327,7 +326,7 @@ class BibliotecaProfessor {
         score_final: 1.0,
         origem: "Título",
         chunk_texto: d.texto_extraido || "Encontrado pelo título",
-        caminho: d.caminho, // Professor usa 'caminho'
+        caminho: d.caminho_arquivo,
       }));
 
       let docsAI = (resAI.data?.results || []).map((r) => ({
@@ -342,7 +341,7 @@ class BibliotecaProfessor {
         if (d.score_final >= 0.45) mapa.set(d.id || d.caminho, d);
       });
       docsKeyword.forEach((d) => {
-        const k = d.id || d.caminho;
+        const k = d.id || d.caminho_arquivo;
         if (mapa.has(k)) mapa.get(k).score_final = 1.0;
         else mapa.set(k, { ...d, score_final: 1.0 });
       });
@@ -356,7 +355,7 @@ class BibliotecaProfessor {
         return;
       }
 
-      UIManager.renderDocs(finais, this.els.docsGrid, "bibliotecaProfessor");
+      UIManager.renderDocs(finais, this.els.docsGrid, "bibliotecaAluno");
       UIManager.toast(`Encontrados ${finais.length} resultados`, "success");
     } catch (e) {
       console.error("Erro Busca:", e);
@@ -369,25 +368,22 @@ class BibliotecaProfessor {
     const filtered = this.docs.filter((d) =>
       (d.titulo || "").toLowerCase().includes(q)
     );
-    UIManager.renderDocs(filtered, this.els.docsGrid, "bibliotecaProfessor");
+    const adaptados = filtered.map((d) => ({
+      ...d,
+      caminho: d.caminho_arquivo,
+    }));
+    UIManager.renderDocs(adaptados, this.els.docsGrid, "bibliotecaAluno");
   }
 
-  // --- REMOVER ---
-  async remove(path) {
-    if (!confirm("Apagar arquivo?")) return;
-    await this.supa.storage.from(this.bucket).remove([path]);
-    await this.supa.from(this.table).delete().eq("caminho", path);
-    this.loadDocuments();
-  }
-
-  // --- PREVIEW ---
+  // --- PREVIEW (DRAWER AVANÇADO) ---
   async preview(path) {
     try {
       if (!path) return;
 
       this.els.drawerOverlay?.classList.add("active");
       this.els.drawerPanel?.classList.add("active");
-      this.els.drawerBody.innerHTML = "<p>Carregando...</p>";
+      this.els.drawerBody.innerHTML =
+        '<p style="padding:20px;">Carregando...</p>';
 
       const { data } = await this.supa.storage
         .from(this.bucket)
@@ -395,7 +391,8 @@ class BibliotecaProfessor {
       if (!data?.signedUrl) throw new Error("URL inválida");
       const signedUrl = data.signedUrl;
 
-      const doc = this.docs.find((d) => d.caminho === path) || {};
+      // Determina tipo e título
+      const doc = this.docs.find((d) => d.caminho_arquivo === path) || {};
       const title = doc.titulo || doc.nome_original || path.split("/").pop();
       this.els.drawerTitle.textContent = title;
 
@@ -413,14 +410,17 @@ class BibliotecaProfessor {
         path.toLowerCase().endsWith(".csv");
       const isImage = mime.startsWith("image/");
 
+      // 1. PDF (Iframe estilo Professor)
       if (isPDF) {
         this.els.drawerBody.innerHTML = `
-          <iframe src="${signedUrl}" style="width:100%; height:85vh; border:none; background:#f5f5f5;"></iframe>
+          <iframe src="${signedUrl}" style="width:100%; height:85vh; border:none; background:#f5f5f5;" allow="fullscreen"></iframe>
           <div style="margin-top:10px; text-align:center;">
              <a href="${signedUrl}" target="_blank" class="btn">Baixar PDF Original</a>
           </div>
         `;
-      } else if (isWord) {
+      }
+      // 2. Word (Mammoth)
+      else if (isWord) {
         if (window.mammoth) {
           try {
             const response = await fetch(signedUrl);
@@ -432,42 +432,87 @@ class BibliotecaProfessor {
                     <div class="docx-content" style="padding:20px; background:white; min-height:50vh;">${result.value}</div>
                     <div style="margin-top:10px; text-align:center;"><a href="${signedUrl}" target="_blank" class="btn">Baixar DOCX</a></div>`;
           } catch (err) {
-            this.els.drawerBody.innerHTML = `<p>Erro ao visualizar DOCX.</p>`;
+            this.els.drawerBody.innerHTML = `<p style="padding:20px;">Erro ao visualizar DOCX. <a href="${signedUrl}" target="_blank">Baixar</a></p>`;
           }
         } else {
-          this.els.drawerBody.innerHTML = `<p>Visualizador indisponível.</p>`;
+          this.els.drawerBody.innerHTML = `<p style="padding:20px;">Visualizador indisponível.</p>`;
         }
-      } else if (isText) {
+      }
+      // 3. Texto / JSON / CSV
+      else if (isText) {
         const response = await fetch(signedUrl);
         const text = await response.text();
         let display = UIManager.escapeHtml(text);
-        // Tenta formatar JSON se for JSON
+        // Prettify se for JSON
         if (path.toLowerCase().endsWith(".json")) {
           try {
             display = JSON.stringify(JSON.parse(text), null, 2);
           } catch (e) {}
         }
         this.els.drawerBody.innerHTML = `<pre style="background:#f4f4f4; padding:15px; overflow:auto; height:80vh;">${display}</pre>`;
-      } else if (isImage) {
-        this.els.drawerBody.innerHTML = `<div style="text-align:center"><img src="${signedUrl}" style="max-width:100%; max-height:80vh"></div>`;
-      } else {
+      }
+      // 4. Imagem
+      else if (isImage) {
+        this.els.drawerBody.innerHTML = `<div style="text-align:center; padding:20px;"><img src="${signedUrl}" style="max-width:100%; max-height:80vh"></div>`;
+      }
+      // 5. Fallback
+      else {
         this.els.drawerBody.innerHTML = `
             <div style="text-align:center; padding:50px;">
-                <p>Pré-visualização não disponível.</p>
-                <a href="${signedUrl}" target="_blank" class="btn">Baixar Arquivo</a>
+                <p>Visualização não disponível.</p>
+                <a href="${signedUrl}" target="_blank" class="btn" style="padding:10px 20px; background:#4b66c9; color:white; border-radius:5px; text-decoration:none;">Baixar Arquivo</a>
             </div>
         `;
       }
     } catch (e) {
       console.error("Erro Preview:", e);
-      this.els.drawerBody.innerHTML = `<p>Erro ao carregar.</p>`;
+      this.els.drawerBody.innerHTML = `<p style="padding:20px;">Erro ao carregar arquivo.</p>`;
     }
+  }
+
+  async remove(path) {
+    if (!confirm("Apagar?")) return;
+    await this.supa.storage.from(this.bucket).remove([path]);
+    await this.supa.from(this.table).delete().eq("caminho_arquivo", path);
+    this.loadDocuments();
   }
 
   closePreviewDrawer() {
     this.els.drawerOverlay?.classList.remove("active");
     this.els.drawerPanel?.classList.remove("active");
-    if (this.els.drawerBody) this.els.drawerBody.innerHTML = "";
+    this.els.drawerBody.innerHTML = "";
+  }
+
+  applyTypeFilter(type) {
+    if (!type || type === "all") {
+      this.loadDocuments();
+      return;
+    }
+
+    const map = {
+      pdf: [".pdf", "application/pdf"],
+      docx: [".doc", ".docx", "word"],
+      txt: [".txt", "text/plain", ".md"],
+      csv: [".csv"],
+      json: [".json"],
+      zip: [".zip", ".rar"],
+      audio: [".mp3", "audio/"],
+      video: [".mp4", "video/"],
+    };
+
+    const matchers = map[type] || [type];
+
+    const filtered = this.docs.filter((d) => {
+      const nome = (d.nome_original || d.titulo || "").toLowerCase();
+      const mime = (d.tipo_arquivo || "").toLowerCase();
+      return matchers.some((m) => nome.endsWith(m) || mime.includes(m));
+    });
+
+    const adaptados = filtered.map((d) => ({
+      ...d,
+      caminho: d.caminho_arquivo,
+    }));
+    UIManager.renderDocs(adaptados, this.els.docsGrid, "bibliotecaAluno");
   }
 
   debounce(fn, d) {
@@ -479,16 +524,15 @@ class BibliotecaProfessor {
   }
 }
 
-// INICIALIZAÇÃO
-function startApp() {
-  if (window.bibliotecaProfessor) return;
-  if (!window.SupabaseClient || !window.CONFIG) {
-    setTimeout(startApp, 100);
+function startStudentApp() {
+  if (window.bibliotecaAluno) return;
+  if (!window.supabaseClient && !window.supabase) {
+    setTimeout(startStudentApp, 100);
     return;
   }
-  window.bibliotecaProfessor = new BibliotecaProfessor();
+  window.bibliotecaAluno = new BibliotecaAluno();
 }
+
 if (document.readyState === "complete" || document.readyState === "interactive")
-  startApp();
-else document.addEventListener("DOMContentLoaded", startApp);
-document.addEventListener("configReady", startApp);
+  startStudentApp();
+else document.addEventListener("DOMContentLoaded", startStudentApp);

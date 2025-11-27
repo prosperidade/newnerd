@@ -1,5 +1,5 @@
 // supabase/functions/embed/index.ts
-// PROCESSADOR HÍBRIDO (Aceita PDF para baixar OU Texto pronto)
+// PROCESSADOR HÍBRIDO V7 (Suporte Total: Aluno & Professor + Upload Direto de Texto)
 
 // deno-lint-ignore-file
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // 1. Receber Payload (Agora aceita 'text' opcional)
+    // 1. Receber Payload
     const { record, text: manualText } = await req.json();
 
     if (!record || !record.name) {
@@ -37,22 +37,32 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log(`📄 Processando: ${record.name}`);
+    // --- ROTEAMENTO INTELIGENTE (ALUNO vs PROFESSOR) ---
+    const isStudent = !!record.is_student; // Flag enviada pelo JS do aluno
+    const ownerId = record.owner || record.aluno_id || record.professor_id;
+    const bucketName = isStudent ? "alunos-biblioteca" : "newnerd_professores";
+
+    console.log(
+      `📄 Processando (${isStudent ? "ALUNO" : "PROFESSOR"}): ${record.name}`
+    );
 
     let textToEmbed = "";
 
-    // 2. DECISÃO: Usar texto enviado OU baixar PDF?
+    // 2. Obter Texto (Manual ou Download PDF)
     if (manualText && manualText.length > 0) {
-      console.log("📝 Usando texto enviado pelo Frontend (Word/Txt)...");
+      console.log("📝 Texto recebido diretamente...");
       textToEmbed = manualText;
     } else if (record.name.toLowerCase().endsWith(".pdf")) {
-      console.log("📥 Baixando PDF para extração...");
+      console.log(`📥 Baixando PDF do bucket ${bucketName}...`);
+
       const { data: fileData, error: downloadError } = await supabase.storage
-        .from("newnerd_professores")
+        .from(bucketName)
         .download(record.name);
 
       if (downloadError)
-        throw new Error(`Erro download: ${downloadError.message}`);
+        throw new Error(
+          `Erro download (${bucketName}): ${downloadError.message}`
+        );
 
       try {
         const arrayBuffer = await fileData.arrayBuffer();
@@ -63,11 +73,10 @@ Deno.serve(async (req) => {
         throw new Error(`Erro parsing PDF: ${e.message}`);
       }
     } else {
-      // Se não é PDF e não mandou texto
       return new Response(
         JSON.stringify({
           skipped: true,
-          reason: "Formato não suportado pelo servidor (e sem texto enviado)",
+          reason: "Formato requer texto manual",
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -75,15 +84,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 3. Limpeza e Corte
+    // 3. Limpeza
     textToEmbed = textToEmbed.replace(/\n/g, " ").replace(/\s+/g, " ").trim();
     const textChunk = textToEmbed.substring(0, 8000);
 
-    if (!textChunk || textChunk.length < 5)
-      throw new Error("Texto vazio ou insuficiente.");
+    if (!textChunk || textChunk.length < 5) throw new Error("Texto vazio.");
 
     // 4. Embedding (Google)
-    console.log("🤖 Gerando embedding...");
     const googleRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${GOOGLE_API_KEY}`,
       {
@@ -96,37 +103,40 @@ Deno.serve(async (req) => {
       }
     );
 
-    if (!googleRes.ok) {
-      const txt = await googleRes.text();
-      throw new Error(`Erro Google (${googleRes.status}): ${txt}`);
-    }
-
+    if (!googleRes.ok)
+      throw new Error(`Erro Google: ${await googleRes.text()}`);
     const googleData = await googleRes.json();
     const embedding = googleData.embedding?.values;
+    if (!embedding) throw new Error("Vetor não gerado.");
 
-    if (!embedding) throw new Error("Google não retornou vetor.");
+    // 5. Salvar no Banco (ROTEAMENTO DE RPC)
+    console.log("💾 Salvando no banco...");
 
-    // 5. Salvar
-    console.log("💾 Salvando...");
-    const { error: rpcError } = await supabase.rpc(
-      "insert_professor_embedding",
-      {
-        p_professor_id: record.owner || record.professor_id,
+    let rpcError;
+
+    if (isStudent) {
+      // --- FLUXO ALUNO ---
+      const result = await supabase.rpc("insert_aluno_embedding", {
+        p_aluno_id: ownerId,
         p_documento_path: record.name,
         p_chunk_texto: textChunk,
         p_metadata: { titulo: record.name },
         p_embedding: embedding,
-      }
-    );
-
-    if (rpcError) {
-      const { error: updateError } = await supabase
-        .from("arquivos_professor")
-        .update({ texto_extraido: textChunk, embedding: embedding })
-        .eq("caminho", record.name);
-      if (updateError)
-        throw new Error(`Erro update DB: ${updateError.message}`);
+      });
+      rpcError = result.error;
+    } else {
+      // --- FLUXO PROFESSOR ---
+      const result = await supabase.rpc("insert_professor_embedding", {
+        p_professor_id: ownerId,
+        p_documento_path: record.name,
+        p_chunk_texto: textChunk,
+        p_metadata: { titulo: record.name },
+        p_embedding: embedding,
+      });
+      rpcError = result.error;
     }
+
+    if (rpcError) throw new Error(`Erro RPC: ${rpcError.message}`);
 
     console.log("✅ Sucesso!");
     return new Response(JSON.stringify({ success: true }), {

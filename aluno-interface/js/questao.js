@@ -1,4 +1,4 @@
-// js/questao.js - Lógica Unificada (Corrigida V/F e Discursivas)
+// js/questao.js - Versão Estável e Simplificada
 
 let aluno = null;
 let todasQuestoes = [];
@@ -9,24 +9,39 @@ let tempoInicio = null;
 
 // --- INICIALIZAÇÃO ---
 document.addEventListener("DOMContentLoaded", async () => {
+  console.log("🚀 JS de Questões Iniciado");
+
+  // Aguarda auth e config
+  if (!window.supabaseClient) {
+    console.warn("⏳ Aguardando Supabase...");
+    // Pequeno delay para garantir carregamento
+    await new Promise((r) => setTimeout(r, 500));
+  }
+
   const user = await verificarAuth();
   if (!user) return;
 
-  const { data: perfil } = await window.supabaseClient
-    .from("alunos")
-    .select("*")
-    .eq("email", user.email)
-    .single();
+  try {
+    const { data: perfil, error } = await window.supabaseClient
+      .from("alunos")
+      .select("*")
+      .eq("email", user.email)
+      .single();
 
-  if (!perfil) {
-    alert("Erro: Perfil de aluno não encontrado.");
-    return;
+    if (error || !perfil) {
+      console.error("Perfil não encontrado:", error);
+      alert("Erro ao carregar perfil do aluno.");
+      return;
+    }
+
+    aluno = perfil;
+    const elNome = document.getElementById("alunoNome");
+    if (elNome) elNome.textContent = aluno.nome || "Aluno";
+
+    await carregarDados();
+  } catch (e) {
+    console.error("Erro fatal init:", e);
   }
-
-  aluno = perfil;
-  document.getElementById("alunoNome").textContent = aluno.nome || "Aluno";
-
-  await carregarDados();
 });
 
 // --- CARREGAMENTO ---
@@ -34,42 +49,49 @@ async function carregarDados() {
   const grid = document.getElementById("questoesGrid");
 
   try {
+    // 1. Minhas Respostas
     const { data: resps } = await window.supabaseClient
       .from("respostas_alunos")
       .select("*")
       .eq("aluno_id", aluno.id);
     todasRespostas = resps || [];
 
+    // 2. Questões da Série
     let query = window.supabaseClient
       .from("questoes_geradas")
       .select("*")
       .eq("serie", aluno.serie)
       .order("created_at", { ascending: false });
 
-    if (aluno.professor_id)
+    if (aluno.professor_id) {
       query = query.eq("professor_id", aluno.professor_id);
+    }
 
     const { data: quests, error } = await query;
     if (error) throw error;
+
     todasQuestoes = quests || [];
+    console.log(`✅ Carregado: ${todasQuestoes.length} questões.`);
 
     renderizarGrid(todasQuestoes);
     atualizarStats();
   } catch (err) {
     console.error("Erro carregamento:", err);
-    grid.innerHTML =
-      '<p style="text-align:center; color:red;">Erro ao carregar dados.</p>';
+    if (grid)
+      grid.innerHTML =
+        '<p style="text-align:center; color:red;">Erro ao carregar dados.</p>';
   }
 }
 
 // --- GRID ---
 function renderizarGrid(lista) {
   const grid = document.getElementById("questoesGrid");
+  if (!grid) return;
   grid.innerHTML = "";
 
   if (lista.length === 0) {
     grid.innerHTML =
-      '<p style="text-align:center; padding:40px; color:#777; grid-column:1/-1;">Nenhuma atividade disponível.</p>';
+      '<div class="empty-state"><h3>Nenhuma atividade</h3></div>';
     return;
   }
 
@@ -79,37 +101,35 @@ function renderizarGrid(lista) {
 
     const card = document.createElement("div");
     card.className = `action-card ${feita ? "card-respondida" : ""}`;
-    card.style.textAlign = "left";
-    card.style.display = "flex";
-    card.style.flexDirection = "column";
+    // Força estilo para garantir visualização
+    card.style.cssText =
+      "background:white; padding:20px; border-radius:10px; box-shadow:0 2px 5px rgba(0,0,0,0.05); margin-bottom:15px; border:1px solid #eee; position:relative;";
 
-    const disciplina = q.disciplina || "Geral";
-    const resumo =
-      q.enunciado && q.enunciado.length > 80
+    const resumo = q.enunciado
+      ? q.enunciado.length > 80
         ? q.enunciado.substring(0, 80) + "..."
-        : q.enunciado || "Questão sem texto";
-    const tipoRaw = q.tipo || q.tipo_questao || "";
-    const tipoFmt = tipoRaw.replace(/_/g, " ");
+        : q.enunciado
+      : "Sem texto";
+
+    let statusHtml = `<span style="color:#f57c00; font-weight:bold; font-size:0.8em;">Pendente</span>`;
+    if (feita) {
+      const nota = Number(resposta.nota || 0).toFixed(1);
+      const cor = nota >= 6 ? "green" : "red";
+      statusHtml = `<span style="color:${cor}; font-weight:bold;">Nota: ${nota}</span>`;
+    }
 
     card.innerHTML = `
-            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                <span class="badge badge-disciplina" style="font-size:0.7rem">${disciplina}</span>
-                ${
-                  feita
-                    ? `<span style="color:#2f855a; font-weight:bold; font-size:0.8rem;">Nota: ${Number(
-                        resposta.nota || 0
-                      ).toFixed(1)}</span>`
-                    : `<span style="color:#f57c00; font-size:0.8rem;">Pendente</span>`
-                }
-            </div>
-            <h3 style="font-size:1rem; margin-bottom:15px; color:#333; flex-grow:1;">${resumo}</h3>
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px;">
-                <small style="color:#888; font-size:0.75rem; text-transform:capitalize;">${tipoFmt}</small>
-                <button class="btn-login" style="width:auto; padding:6px 15px; font-size:0.8rem; margin:0;">
-                    ${feita ? "Ver Feedback" : "Responder"}
-                </button>
-            </div>
-        `;
+      <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+         <span class="badge" style="background:#eee; color:#555; font-size:0.7em; padding:2px 8px; border-radius:4px;">${
+           q.disciplina
+         }</span>
+         ${statusHtml}
+      </div>
+      <h3 style="font-size:1rem; margin:0 0 15px 0; color:#333;">${resumo}</h3>
+      <button class="btn-login" style="width:100%; padding:8px; font-size:0.9rem;">
+         ${feita ? "Ver Correção" : "Responder"}
+      </button>
+    `;
 
     card.onclick = () => {
       if (feita) carregarResultado(resposta, q);
@@ -120,91 +140,100 @@ function renderizarGrid(lista) {
   });
 }
 
-// --- RESPONDER (LÓGICA CORRIGIDA) ---
+// --- ABRIR QUESTÃO ---
 function abrirQuestao(q) {
   questaoAtual = q;
+  console.log("📖 Abrindo:", q.id);
 
   document.getElementById("q-disciplina").textContent = q.disciplina || "Geral";
   document.getElementById("q-serie").textContent = q.serie || "";
-  document.getElementById("q-enunciado").textContent = q.enunciado;
+
+  // Tratamento seguro do enunciado
+  const textoEnunciado = q.enunciado || "Enunciado indisponível.";
+  document.getElementById("q-enunciado").innerHTML = textoEnunciado.replace(
+    /\n/g,
+    "<br>"
+  );
 
   const container = document.getElementById("q-opcoes");
   container.innerHTML = "";
 
-  // Pega o tipo do banco
   const tipo = (q.tipo || q.tipo_questao || "").toLowerCase();
 
-  // Lógica Decisiva de Renderização
-  if (tipo.includes("verdadeiro") || tipo.includes("falso")) {
-    // === CASO 1: VERDADEIRO OU FALSO (Manual) ===
-    ["Verdadeiro", "Falso"].forEach((opt) => {
-      container.innerHTML += `
-                <label class="option-modern">
-                    <input type="radio" name="resp" value="${opt}">
-                    <span class="radio-custom"></span>
-                    <span class="option-text" style="margin-left:10px;">${opt}</span>
-                </label>`;
-    });
-  } else if (tipo.includes("multipla")) {
-    // === CASO 2: MÚLTIPLA ESCOLHA (Usa JSON do banco) ===
-    let alts = [];
-    try {
-      if (Array.isArray(q.alternativas)) alts = q.alternativas;
-      else if (typeof q.alternativas === "string")
-        alts = JSON.parse(q.alternativas);
-    } catch (e) {
-      console.warn("Sem alternativas válidas");
+  // 1. Múltipla Escolha / VF
+  if (
+    tipo.includes("multipla") ||
+    tipo.includes("verdadeiro") ||
+    tipo.includes("falso")
+  ) {
+    let opcoes = [];
+    if (tipo.includes("multipla")) {
+      try {
+        opcoes =
+          typeof q.alternativas === "string"
+            ? JSON.parse(q.alternativas)
+            : q.alternativas;
+      } catch (e) {
+        opcoes = [];
+      }
+    } else {
+      opcoes = ["Verdadeiro", "Falso"];
     }
 
-    if (alts.length > 0) {
-      alts.forEach((opt) => {
-        const safeOpt = String(opt).replace(/"/g, "&quot;");
+    if (Array.isArray(opcoes)) {
+      opcoes.forEach((opt) => {
+        const valor = typeof opt === "object" ? opt.texto : opt;
+        const letra = typeof opt === "object" ? opt.letra : "";
+
         container.innerHTML += `
-                    <label class="option-modern">
-                        <input type="radio" name="resp" value="${safeOpt}">
-                        <span class="radio-custom"></span>
-                        <span class="option-text" style="margin-left:10px;">${opt}</span>
-                    </label>`;
+                <label style="display:flex; gap:10px; padding:12px; border:1px solid #eee; border-radius:8px; margin-bottom:8px; cursor:pointer; align-items:center;">
+                    <input type="radio" name="resp" value="${valor}" style="transform:scale(1.2);">
+                    <span style="font-size:1rem;">${
+                      letra ? `<b>${letra})</b> ` : ""
+                    }${valor}</span>
+                </label>`;
       });
-    } else {
-      container.innerHTML =
-        "<p style='color:red'>Erro: Questão múltipla escolha sem alternativas cadastradas.</p>";
     }
-  } else {
-    // === CASO 3: DISCURSIVA (Textarea) ===
+  }
+  // 2. Discursiva
+  else {
     container.innerHTML = `
-            <textarea id="resp-texto" class="form-textarea" 
-            placeholder="Digite sua resposta completa aqui..." 
-            style="min-height:150px; width:100%; padding:15px; border:1px solid #ccc; border-radius:8px;"></textarea>`;
+        <textarea id="resp-texto" 
+        placeholder="Digite sua resposta aqui..." 
+        style="width:100%; height:150px; padding:15px; border:1px solid #ccc; border-radius:8px; font-size:1rem; resize:vertical;"></textarea>
+    `;
   }
 
+  // Timer
   tempoInicio = Date.now();
   startTimer();
 
-  document.getElementById("form-resposta").onsubmit = async (e) => {
+  // BIND SIMPLIFICADO (Sem cloneNode para evitar perda de referência)
+  const form = document.getElementById("form-resposta");
+  // Remove listener anterior sobrescrevendo o onsubmit
+  form.onsubmit = async function (e) {
     e.preventDefault();
     await enviarResposta();
   };
 
   trocarView("view-responder");
 }
+
+// --- ENVIAR (LÓGICA DE NUVEM) ---
 async function enviarResposta() {
   const btn = document.querySelector("#form-resposta button");
 
-  // 1. Validação (Garante que tem resposta)
   let val = "";
   const radio = document.querySelector('input[name="resp"]:checked');
   const text = document.getElementById("resp-texto");
-
   if (radio) val = radio.value;
   else if (text) val = text.value;
 
   if (!val || val.trim() === "") {
-    alert("Por favor, responda a questão.");
+    alert("Por favor, responda a questão!");
     return;
   }
 
-  // Trava botão
   btn.disabled = true;
   btn.textContent = "Salvando...";
 
@@ -212,7 +241,7 @@ async function enviarResposta() {
   const tempo = Math.round((Date.now() - tempoInicio) / 1000);
 
   try {
-    // 2. CRIA O REGISTRO NO BANCO (Como Pendente)
+    // 1. Salva Pendente
     const payload = {
       aluno_id: aluno.id,
       questao_id: questaoAtual.id,
@@ -229,125 +258,100 @@ async function enviarResposta() {
       .single();
 
     if (error) throw error;
+    console.log("💾 Salvo localmente:", respSalva.id);
 
-    console.log("✅ Resposta inicial salva. ID:", respSalva.id);
-
-    // 3. CHAMA A IA (N8N)
+    // 2. Chama IA na Nuvem
     btn.textContent = "Corrigindo com IA...";
 
-    if (CONFIG.WEBHOOK_CORRECAO) {
-      try {
-        const n8nResp = await fetch(CONFIG.WEBHOOK_CORRECAO, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            questao_id: questaoAtual.id,
-            aluno_id: aluno.id,
-            resposta: val,
-            // Extras
-            resposta_id: respSalva.id,
-            tipo_questao: questaoAtual.tipo || questaoAtual.tipo_questao,
-            gabarito: questaoAtual.gabarito,
-          }),
-        });
+    const correcaoPayload = {
+      questao: questaoAtual.enunciado,
+      tipo: questaoAtual.tipo || questaoAtual.tipo_questao,
+      gabarito_oficial:
+        questaoAtual.gabarito ||
+        questaoAtual.resposta_esperada ||
+        "Analisar coerência",
+      resposta_aluno: val,
+    };
 
-        if (n8nResp.ok) {
-          const dadosIA = await n8nResp.json();
-          console.log("🤖 IA Respondeu:", dadosIA);
+    console.log("📡 Chamando Edge Function...");
+    const { data: iaResult, error: iaError } =
+      await window.supabaseClient.functions.invoke("correct-answer", {
+        body: correcaoPayload,
+      });
 
-          // === A CORREÇÃO MÁGICA É AQUI ===
-          // Agora vamos GRAVAR o resultado da IA no banco imediatamente
-          const { error: updateError } = await window.supabaseClient
-            .from("respostas_alunos")
-            .update({
-              nota: dadosIA.nota,
-              feedback: dadosIA.feedback,
-              pontos_melhoria: dadosIA.pontos_melhoria,
-              correta: dadosIA.correta,
-              status_correcao: "concluido", // Marca como pronto!
-              corrigido_por: "ia_openai",
-            })
-            .eq("id", respSalva.id);
+    if (iaError) {
+      console.warn("⚠️ IA falhou (Offline ou Timeout):", iaError);
+      alert(
+        "Resposta salva! A correção automática falhou, mas o professor poderá corrigir depois."
+      );
+    } else {
+      console.log("🤖 IA Retornou:", iaResult);
 
-          if (updateError) console.error("Erro ao salvar nota:", updateError);
+      // 3. Atualiza Nota
+      await window.supabaseClient
+        .from("respostas_alunos")
+        .update({
+          nota: iaResult.nota,
+          feedback: iaResult.feedback,
+          pontos_melhoria: iaResult.pontos_melhoria,
+          correta: iaResult.correta,
+          status_correcao: "concluido",
+          corrigido_por: "ia_edge",
+        })
+        .eq("id", respSalva.id);
 
-          // Atualiza o objeto local para mostrar na tela agora
-          respSalva.nota = dadosIA.nota;
-          respSalva.feedback = dadosIA.feedback;
-          respSalva.pontos_melhoria = dadosIA.pontos_melhoria;
-          respSalva.correta = dadosIA.correta;
-          respSalva.status_correcao = "concluido";
-        }
-      } catch (eN8N) {
-        console.warn("⚠️ IA falhou ou offline:", eN8N);
-      }
+      // Atualiza memória local
+      Object.assign(respSalva, iaResult, { status_correcao: "concluido" });
     }
 
-    // 4. MOSTRA O RESULTADO
-    await carregarDados(); // Atualiza a lista de fundo
+    // 4. Sucesso
+    await carregarDados();
     carregarResultado(respSalva, questaoAtual);
   } catch (err) {
     console.error("❌ Erro fatal:", err);
-    alert("Erro ao salvar resposta. Tente novamente.");
+    alert("Erro ao salvar: " + err.message);
+  } finally {
     btn.disabled = false;
     btn.textContent = "Confirmar Resposta";
   }
 }
+
+// --- RESULTADOS E UTILS ---
 function carregarResultado(resposta, questao) {
   const nota = Number(resposta.nota || 0);
-  const aprovado = nota >= 6;
-  const pendente =
-    resposta.status_correcao === "pendente" && !resposta.feedback;
 
-  // 1. Cabeçalho
-  document.getElementById("res-emoji").textContent = pendente
-    ? "⏳"
-    : aprovado
-    ? "🎉"
-    : "📚";
-  document.getElementById("res-msg").textContent = pendente
-    ? "Aguardando Correção..."
-    : aprovado
-    ? "Parabéns!"
-    : "Continue Estudando";
-  document.getElementById("res-nota").textContent = pendente
-    ? "..."
-    : nota.toFixed(1);
+  document.getElementById("res-nota").textContent = nota.toFixed(1);
+  document.getElementById("res-msg").textContent =
+    nota >= 6 ? "Mandou bem!" : "Estude mais um pouco.";
+  document.getElementById("res-emoji").textContent = nota >= 6 ? "🎉" : "📚";
 
-  // 2. Feedback IA
   document.getElementById("res-feedback").textContent =
-    resposta.feedback ||
-    "A inteligência artificial está analisando sua resposta...";
+    resposta.feedback || "Aguardando correção...";
 
-  // 3. [NOVO] Gabarito Oficial
-  // Usamos 'questao' (que vem do clique no card) ou 'questaoAtual' (se acabou de responder)
-  const dadosQuestao = questao || questaoAtual;
-  const boxGabarito = document.getElementById("box-gabarito");
-
-  if (dadosQuestao && dadosQuestao.gabarito) {
-    boxGabarito.style.display = "block";
-    document.getElementById("res-gabarito-texto").textContent =
-      dadosQuestao.gabarito;
-    document.getElementById("res-justificativa").textContent =
-      dadosQuestao.justificativa || "";
-  } else {
-    boxGabarito.style.display = "none";
+  const boxGab = document.getElementById("box-gabarito");
+  if (boxGab) {
+    if (questao.gabarito || questao.resposta_esperada) {
+      boxGab.style.display = "block";
+      document.getElementById("res-gabarito-texto").textContent =
+        questao.gabarito || questao.resposta_esperada;
+      document.getElementById("res-justificativa").textContent =
+        questao.justificativa_gabarito || "";
+    } else {
+      boxGab.style.display = "none";
+    }
   }
 
-  // 4. Pontos de Melhoria
+  // Mostra Pontos de Melhoria se existirem
   const boxMelhoria = document.getElementById("box-melhoria");
-  if (resposta.pontos_melhoria) {
-    boxMelhoria.style.display = "block";
-    document.getElementById("res-melhoria").textContent =
-      resposta.pontos_melhoria;
-  } else {
-    boxMelhoria.style.display = "none";
+  if (boxMelhoria) {
+    if (resposta.pontos_melhoria) {
+      boxMelhoria.style.display = "block";
+      document.getElementById("res-melhoria").textContent =
+        resposta.pontos_melhoria;
+    } else {
+      boxMelhoria.style.display = "none";
+    }
   }
-
-  // 5. Botão Contestar
-  document.getElementById("btn-contestar").onclick = () => {
-    window.location.href = `contestacoes.html?resposta_id=${resposta.id}`;
-  };
 
   trocarView("view-resultado");
 }
@@ -365,35 +369,39 @@ function startTimer() {
   const el = document.getElementById("timer");
   timerInterval = setInterval(() => {
     const s = Math.floor((Date.now() - tempoInicio) / 1000);
-    const min = Math.floor(s / 60)
-      .toString()
-      .padStart(2, "0");
-    const sec = (s % 60).toString().padStart(2, "0");
-    el.textContent = `${min}:${sec}`;
+    const min = String(Math.floor(s / 60)).padStart(2, "0");
+    const sec = String(s % 60).padStart(2, "0");
+    if (el) el.textContent = `${min}:${sec}`;
   }, 1000);
 }
 
 function atualizarStats() {
-  document.getElementById("totalQuestoes").textContent = todasQuestoes.length;
-  document.getElementById("totalRespondidas").textContent =
-    todasRespostas.length;
+  const elTotal = document.getElementById("totalQuestoes");
+  const elFeitos = document.getElementById("totalRespondidas");
+  const elMedia = document.getElementById("mediaNotas");
+
+  if (elTotal) elTotal.textContent = todasQuestoes.length;
+  if (elFeitos) elFeitos.textContent = todasRespostas.length;
+
   if (todasRespostas.length > 0) {
-    const media =
-      todasRespostas.reduce((a, b) => a + (Number(b.nota) || 0), 0) /
-      todasRespostas.length;
-    document.getElementById("mediaNotas").textContent = media.toFixed(1);
+    const soma = todasRespostas.reduce(
+      (acc, r) => acc + (Number(r.nota) || 0),
+      0
+    );
+    if (elMedia)
+      elMedia.textContent = (soma / todasRespostas.length).toFixed(1);
   } else {
-    document.getElementById("mediaNotas").textContent = "-";
+    if (elMedia) elMedia.textContent = "-";
   }
 }
 
 window.aplicarFiltros = function () {
   const disc = document.getElementById("filtroDisciplina").value;
   const tipo = document.getElementById("filtroTipo").value;
+
   const filtradas = todasQuestoes.filter((q) => {
-    const qTipo = (q.tipo || q.tipo_questao || "").toLowerCase();
     if (disc && q.disciplina !== disc) return false;
-    if (tipo && !qTipo.includes(tipo)) return false;
+    if (tipo && !String(q.tipo_questao || q.tipo).includes(tipo)) return false;
     return true;
   });
   renderizarGrid(filtradas);

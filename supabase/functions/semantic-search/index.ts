@@ -1,5 +1,5 @@
 // supabase/functions/semantic-search/index.ts
-// BUSCA SEMÂNTICA COM GOOGLE GEMINI (768 Dimensões)
+// BUSCA SEMÂNTICA HÍBRIDA V5 (Aluno & Professor)
 
 // deno-lint-ignore-file
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -12,34 +12,39 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
-  // 1. CORS Preflight
-  if (req.method === "OPTIONS") {
+  if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
-  }
 
   try {
-    // 2. Configuração e Chaves
     const GOOGLE_API_KEY = Deno.env.get("GOOGLE_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SERVICE_ROLE =
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE");
 
-    if (!SUPABASE_URL || !SERVICE_ROLE || !GOOGLE_API_KEY) {
-      throw new Error("Chaves de configuração ausentes no servidor.");
-    }
+    if (!SUPABASE_URL || !SERVICE_ROLE || !GOOGLE_API_KEY)
+      throw new Error("Chaves ausentes.");
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // 3. Ler Payload do Frontend
-    const { query, professor_id, match_count, match_threshold } =
-      await req.json();
+    // 1. Ler Dados (Incluindo flag is_student)
+    const {
+      query,
+      professor_id,
+      student_id,
+      is_student,
+      match_count,
+      match_threshold,
+    } = await req.json();
 
-    if (!query) throw new Error("Query de busca não informada.");
+    if (!query) throw new Error("Query vazia.");
 
-    console.log(`🔍 Buscando por: "${query}"`);
+    // Define ID do usuário atual
+    const userId = is_student ? student_id : professor_id;
+    console.log(
+      `🔍 Buscando (${is_student ? "ALUNO" : "PROFESSOR"}): "${query}"`
+    );
 
-    // 4. Gerar Embedding da Pergunta (Google Gemini)
-    // Importante: Usamos o mesmo modelo do upload (text-embedding-004)
+    // 2. Embedding da Pergunta (Google Gemini)
     const googleRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${GOOGLE_API_KEY}`,
       {
@@ -52,45 +57,43 @@ Deno.serve(async (req) => {
       }
     );
 
-    if (!googleRes.ok) {
-      const errTxt = await googleRes.text();
-      throw new Error(`Erro Google API: ${errTxt}`);
-    }
-
+    if (!googleRes.ok)
+      throw new Error(`Erro Google: ${await googleRes.text()}`);
     const googleData = await googleRes.json();
     const queryEmbedding = googleData.embedding?.values;
+    if (!queryEmbedding) throw new Error("Vetor não gerado.");
 
-    if (!queryEmbedding) throw new Error("Falha ao gerar vetor da pergunta.");
+    // 3. ROTEAMENTO DE BUSCA (Aluno ou Professor?)
+    let rpcName = "";
+    let rpcParams: any = {
+      query_embedding: queryEmbedding,
+      match_threshold: match_threshold || 0.3,
+      match_count: match_count || 10,
+    };
 
-    // 5. Buscar no Banco (RPC match_embeddings)
-    // Essa função já foi criada no banco e aceita vetor de 768
-    const { data: results, error: rpcError } = await supabase.rpc(
-      "match_embeddings",
-      {
-        query_embedding: queryEmbedding,
-        match_threshold: match_threshold || 0.3, // Relevância mínima
-        match_count: match_count || 5, // Quantidade de resultados
-      }
-    );
-
-    if (rpcError) throw new Error(`Erro na busca RPC: ${rpcError.message}`);
-
-    // Filtrar por professor (Camada extra de segurança via código, caso a RPC não filtre)
-    // Nota: O ideal é a RPC filtrar, mas garantimos aqui se o professor_id for passado
-    let finalResults = results;
-    if (professor_id && Array.isArray(results)) {
-      // Se a RPC não retornou professor_id, não conseguimos filtrar aqui,
-      // mas a policy do banco deve garantir o acesso se configurada corretamente.
-      // Vamos retornar o que o banco mandou.
+    if (is_student) {
+      rpcName = "match_aluno_embeddings"; // Função SQL do Aluno
+      rpcParams.p_aluno_id = userId; // Filtro de aluno
+    } else {
+      rpcName = "match_embeddings"; // Função SQL do Professor
+      // A função original do professor não filtrava ID, filtrava no JS,
+      // mas aqui mantemos o padrão original.
     }
 
-    console.log(`✅ Encontrados: ${results?.length || 0} resultados.`);
+    const { data: results, error: rpcError } = await supabase.rpc(
+      rpcName,
+      rpcParams
+    );
 
-    return new Response(JSON.stringify({ results: finalResults }), {
+    if (rpcError) throw new Error(`Erro RPC (${rpcName}): ${rpcError.message}`);
+
+    console.log(`✅ Resultados: ${results?.length || 0}`);
+
+    return new Response(JSON.stringify({ results: results || [] }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
-    console.error("❌ Erro na Busca:", error.message);
+    console.error("❌ Erro:", error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -1,6 +1,4 @@
-// js/UiBiblioteca.js
-// Renderizador Robusto (Aceita content, chunk_texto ou texto_extraido)
-
+// js/modules/UiBiblioteca.js
 export const UIManager = {
   toast(msg, type = "info") {
     const icons = { info: "ℹ️", success: "✅", error: "❌", warning: "⚠️" };
@@ -41,10 +39,10 @@ export const UIManager = {
     return `<span class="badge">${map[status] || status}</span>`;
   },
 
-  renderDocs(list, containerEl) {
+  // 👇 MUDANÇA: Adicionado 'instanceName'
+  renderDocs(list, containerEl, instanceName = "bibliotecaProfessor") {
     if (!containerEl) return;
 
-    // Limpa o container antes de desenhar
     containerEl.innerHTML = "";
 
     if (!list || list.length === 0) {
@@ -59,16 +57,12 @@ export const UIManager = {
 
     containerEl.innerHTML = list
       .map((doc) => {
-        // 1. Tratamento de Título (Prioriza metadados, depois nome do arquivo)
         const titulo =
           doc.metadata?.titulo ||
           doc.titulo ||
           doc.nome_original ||
           (doc.caminho || doc.documento_path || "").split("/").pop() ||
           "Sem título";
-
-        // 2. Tratamento de Score (Identifica se é busca semântica)
-        // O banco retorna 'similarity', o front mapeia para 'score_final'
         const scoreRaw = doc.score_final ?? doc.similarity;
         const isSemantic = typeof scoreRaw === "number";
 
@@ -78,9 +72,6 @@ export const UIManager = {
            </div>`
           : "";
 
-        // 3. Tratamento ROBUSTO de Texto (A Correção Principal)
-        // O banco manda 'content', a tabela manda 'texto_extraido', o código antigo manda 'chunk_texto'
-        // Aqui lemos qualquer um deles.
         const textoCru =
           doc.content || doc.chunk_texto || doc.texto_extraido || "";
         const snippetHtml = textoCru
@@ -89,9 +80,9 @@ export const UIManager = {
            </div>`
           : "";
 
-        // Caminho para preview/remover
-        const path = doc.caminho || doc.documento_path;
+        const path = doc.caminho || doc.documento_path || doc.caminho_arquivo;
 
+        // 👇 MUDANÇA: Usa a variável 'instanceName' aqui
         return `
         <div class="document-card ${
           isSemantic ? "semantic" : ""
@@ -121,8 +112,8 @@ export const UIManager = {
           </div>
           
           <div class="document-meta" style="margin-top: 15px; display: flex; gap: 10px;">
-            <button class="action-btn" onclick="bibliotecaProfessor.preview('${path}')" style="cursor: pointer; padding: 5px 10px;">👁️ Ver</button>
-            <button class="action-btn" onclick="bibliotecaProfessor.remove('${path}')" style="cursor: pointer; padding: 5px 10px; color: red;">🗑️</button>
+            <button class="action-btn" onclick="${instanceName}.preview('${path}')" style="cursor: pointer; padding: 5px 10px;">👁️ Ver</button>
+            <button class="action-btn" onclick="${instanceName}.remove('${path}')" style="cursor: pointer; padding: 5px 10px; color: red;">🗑️</button>
           </div>
         </div>`;
       })

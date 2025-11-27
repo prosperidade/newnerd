@@ -1,3 +1,4 @@
+// js/modules/FileBiblioteca.js
 export const FileProcessor = {
   basename(filename = "") {
     try {
@@ -37,9 +38,9 @@ export const FileProcessor = {
   async tryExtractText(file) {
     try {
       const name = file.name.toLowerCase();
-      const type = (file.type || "").toLowerCase();
 
-      // A) Texto Puro
+      // 1. Arquivos de Texto (JSON, CSV, TXT, HTML)
+      // Adicionado suporte explícito para JSON e CSV
       const textExtensions = [
         ".txt",
         ".md",
@@ -50,26 +51,37 @@ export const FileProcessor = {
         ".js",
         ".css",
       ];
-      const isTextType =
-        type.startsWith("text/") ||
-        type.includes("json") ||
-        type.includes("csv");
 
-      if (isTextType || textExtensions.some((ext) => name.endsWith(ext))) {
+      if (textExtensions.some((ext) => name.endsWith(ext))) {
         console.log("📝 Lendo arquivo como texto plano...");
-        return await file.text();
+        const text = await file.text();
+        // SEGURANÇA: Trunca textos gigantes (JSONs de log) para não quebrar a IA (máx ~30k chars)
+        return text.substring(0, 30000);
       }
 
-      // B) DOCX (Word)
-      if (name.endsWith(".docx") || type.includes("word")) {
+      // 2. DOCX (Word)
+      if (name.endsWith(".docx")) {
         console.log("📝 Lendo DOCX via Mammoth...");
         return await this._extrairTextoDOCX(file);
       }
 
-      // C) PDF (Backend)
-      if (name.endsWith(".pdf") || type.includes("pdf")) {
+      // 3. PDF (Backend processa)
+      if (name.endsWith(".pdf")) {
         console.log("📄 PDF detectado: Delegando leitura para o servidor.");
         return null;
+      }
+
+      // 4. ZIP, Áudio, Vídeo (Ignorar IA)
+      // Retornamos 'SKIP_AI' para o controller saber que não deve mandar para o embed
+      if (
+        name.endsWith(".zip") ||
+        name.endsWith(".mp3") ||
+        name.endsWith(".mp4")
+      ) {
+        console.log(
+          "📦 Arquivo binário/mídia: Ignorando processamento de texto."
+        );
+        return "SKIP_AI";
       }
 
       return null;
