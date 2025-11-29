@@ -1,40 +1,18 @@
 ﻿// ========================================
-// CONFIGURAÇÕES DO NEW NERD (PROFESSOR)
+// CONFIG.JS - PROFESSOR (compatível com Deno Lint)
 // ========================================
+console.log("🔥 CONFIG.JS (professor) CARREGANDO...");
 
-console.log("🔥 CONFIG.JS CARREGANDO...");
+// Descobre ambiente sem depender de "window"
+const HOST = typeof location !== "undefined" ? location.hostname : "";
+const ENV = HOST === "localhost" || HOST === "127.0.0.1" ? "dev" : "prod";
 
-// Ambiente atual: "dev" = desenvolvimento, "prod" = produção
-const ENV = "dev"; // <<< QUANDO FOR SUBIR PRA PRODUÇÃO, TROCAR PARA "prod"
+// Lê config local com segurança
+const LOCAL =
+  typeof globalThis !== "undefined" && globalThis.LOCAL_CONFIG
+    ? globalThis.LOCAL_CONFIG
+    : null;
 
-// =================================================================================
-// CARREGAMENTO ASSÍNCRONO DE CONFIGURAÇÕES LOCAIS (APENAS EM DEV)
-// Esta função tenta carregar um `config.local.js` do mesmo diretório.
-// Se não encontrar, segue silenciosamente.
-// =================================================================================
-function loadLocalConfig() {
-  if (ENV === "dev") {
-    return new Promise((resolve) => {
-      const script = document.createElement("script");
-      script.src = "./config.local.js"; // Caminho local
-      script.onload = () => {
-        console.log("✅ config.local.js carregado com sucesso.");
-        resolve();
-      };
-      script.onerror = () => {
-        console.warn(
-          "⚠️  config.local.js não encontrado. Chaves locais (ex: OpenAI) não serão carregadas. Isso é esperado em produção."
-        );
-        resolve(); // Resolve mesmo em caso de erro
-      };
-      document.head.appendChild(script);
-    });
-  }
-  return Promise.resolve();
-}
-
-// Bloco com dados LEGADOS de desenvolvimento.
-// NÃO é pra usar isso em produção.
 const LEGACY_DEV = {
   PROFESSOR_ID: "5531f4a4-656b-4565-98b0-cc66dd0ca0ef",
   TESTE_EMAIL: "teste@newnerd.com",
@@ -44,57 +22,35 @@ const LEGACY_DEV = {
 const CONFIG = {
   ENV,
 
-  // ===========================
-  // FUNÇÕES / WEBHOOKS
-  // ===========================
   GENERATE_FUNCTION_URL:
     "https://cxizjrdlkhhegzpzzmgl.supabase.co/functions/v1/generate-question",
   WEBHOOK_URL:
-    "https://cxizjrdlkhhegzpzzmgl.supabase.co/functions/v1/generate-question", // compatibilidade
+    "https://cxizjrdlkhhegzpzzmgl.supabase.co/functions/v1/generate-question",
 
   REQUEST_TIMEOUT: 60000,
 
-  // ===========================
-  // SUPABASE
-  // ===========================
   SUPABASE_URL: "https://cxizjrdlkhhegzpzzmgl.supabase.co",
+  // anon key é pública por definição
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9....",
 
-  // ANON KEY pode ficar no front (é pública por definição)
-  SUPABASE_ANON_KEY:
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN4aXpqcmRsa2hoZWd6cHp6bWdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0Mzk0OTIsImV4cCI6MjA3NTAxNTQ5Mn0.BUbNOWdjfweTHHZsJfTzyaq_qVxWiHM41Ug7X4ozUow",
+  // Em DEV pode vir do config.local.js; em PROD permanece null para não expor
+  OPENAI_API_KEY: ENV === "dev" ? LOCAL?.OPENAI_API_KEY ?? null : null,
 
-  // ===========================
-  // CHAVES SENSÍVEIS (LEGADO)
-  // ===========================
-  // Em DEV, tenta carregar do config.local.js.
-  // Em PROD, é null para garantir que a chave nunca seja exposta no navegador.
-  OPENAI_API_KEY:
-    ENV === "dev" ? window.LOCAL_CONFIG?.OPENAI_API_KEY || null : null,
-
-  // Identidade de teste (professor)
+  // Dados de teste apenas no dev
   PROFESSOR_ID: ENV === "dev" ? LEGACY_DEV.PROFESSOR_ID : null,
   TESTE_EMAIL: ENV === "dev" ? LEGACY_DEV.TESTE_EMAIL : null,
   TESTE_SENHA: ENV === "dev" ? LEGACY_DEV.TESTE_SENHA : null,
 
-  // ===========================
-  // EMBEDDINGS
-  // ===========================
-  // Preferir SEMPRE Edge Function em produção.
+  // Embeddings
   EMBED_URL: "https://cxizjrdlkhhegzpzzmgl.functions.supabase.co/embed",
+  EMBED_MODE: "edge_first",
 
-  // controla comportamento: "edge_first" tenta Edge; cai para "browser" se falhar.
-  EMBED_MODE: "edge_first", // "edge_first" | "browser_only"
-
-  // ===========================
-  // TABELAS / BUCKETS DO PROFESSOR
-  // ===========================
+  // Tabelas / Buckets
   BUCKET_PROFESSOR: "newnerd_professores",
   TABLE_ARQUIVOS_PROF: "arquivos_professor",
   TABLE_PROFESSORES: "professores",
 
-  // ===========================
-  // UI / LOCALSTORAGE
-  // ===========================
+  // UI / LocalStorage
   STORAGE_KEY: "newnerd_historico",
   THEME_KEY: "newnerd_theme",
   MAX_HISTORY_ITEMS: 100,
@@ -145,51 +101,48 @@ const SERIES = [
   "2º EM",
   "3º EM",
 ];
-
 const DIFICULDADES = ["fácil", "média", "difícil"];
 
-// =================================================================================
-// INICIALIZAÇÃO ASSÍNCRONA
-// Garantimos que o config local seja carregado ANTES de definirmos as configs
-// globais e o cliente Supabase.
-// =================================================================================
-async function initializeConfig() {
-  await loadLocalConfig(); // Espera a tentativa de carregamento
+// Exporta globais de forma segura (sem window)
+if (typeof globalThis !== "undefined") {
+  globalThis.CONFIG = CONFIG;
+  globalThis.QUESTION_TYPES = QUESTION_TYPES;
+  globalThis.DISCIPLINAS = DISCIPLINAS;
+  globalThis.SERIES = SERIES;
+  globalThis.DIFICULDADES = DIFICULDADES;
+}
 
-  // Atualiza a chave OpenAI no objeto CONFIG já existente
-  CONFIG.OPENAI_API_KEY =
-    ENV === "dev" ? window.LOCAL_CONFIG?.OPENAI_API_KEY || null : null;
+// Inicialização (sem async para evitar 'require-await')
+function initializeConfigProfessor() {
+  // Se o arquivo local carregou antes (pelo HTML), atualiza chave
+  CONFIG.OPENAI_API_KEY = ENV === "dev" ? LOCAL?.OPENAI_API_KEY ?? null : null;
 
-  // Exporta as variáveis globais
-  if (typeof window !== "undefined") {
-    window.CONFIG = CONFIG;
-    window.QUESTION_TYPES = QUESTION_TYPES;
-    window.DISCIPLINAS = DISCIPLINAS;
-    window.SERIES = SERIES;
-    window.DIFICULDADES = DIFICULDADES;
-
-    // INICIALIZA O CLIENTE SUPABASE AQUI
+  // Cria cliente Supabase se a lib global existir
+  if (
+    typeof globalThis !== "undefined" &&
+    typeof globalThis.supabase !== "undefined"
+  ) {
     try {
-      const { createClient } = supabase;
-      window.supabaseClient = createClient(
+      globalThis.supabaseClient = globalThis.supabase.createClient(
         CONFIG.SUPABASE_URL,
         CONFIG.SUPABASE_ANON_KEY
       );
-      console.log("✅ Supabase client inicializado com sucesso!");
+      console.log("✅ Supabase client inicializado (professor)!");
     } catch (e) {
       console.error("❌ Erro ao inicializar o Supabase client:", e);
-      // Opcional: Adicionar UI de erro para o usuário
     }
-
-    console.log("✅ Variáveis globais exportadas!");
+  } else {
+    console.warn(
+      "⚠️ Biblioteca Supabase não encontrada. Verifique os scripts no HTML."
+    );
   }
 
-  console.log("✅ CONFIG carregado:", CONFIG.WEBHOOK_URL);
-  console.log("🔥 CONFIG.JS CARREGADO COMPLETAMENTE!");
+  console.log("✅ CONFIG (professor) carregado:", CONFIG.WEBHOOK_URL);
+  console.log("🔥 CONFIG.JS (professor) CARREGADO COMPLETAMENTE!");
 
-  // Dispara um evento customizado para notificar que a configuração e o cliente estão prontos
-  document.dispatchEvent(new Event("configReady"));
+  if (typeof document !== "undefined") {
+    document.dispatchEvent(new Event("configReady"));
+  }
 }
 
-// Inicia o processo
-initializeConfig();
+initializeConfigProfessor();

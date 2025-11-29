@@ -1,5 +1,5 @@
 // supabase/functions/correct-answer/index.ts
-// CORREÇÃO INTELIGENTE V3 (Híbrida: Objetiva vs Discursiva)
+// CORREÇÃO INTELIGENTE V5 (Híbrida + Contexto de Alternativas)
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
@@ -17,12 +17,18 @@ Deno.serve(async (req) => {
     const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
     if (!OPENAI_API_KEY) throw new Error("Chave OpenAI não configurada.");
 
-    const { questao, resposta_aluno, gabarito_oficial, tipo } =
-      await req.json();
+    // AGORA RECEBEMOS 'alternativas' e 'afirmacoes' TAMBÉM
+    const {
+      questao,
+      resposta_aluno,
+      gabarito_oficial,
+      tipo,
+      alternativas,
+      afirmacoes,
+    } = await req.json();
 
     if (!questao || !resposta_aluno) throw new Error("Dados incompletos.");
 
-    // Normaliza o tipo para evitar erros de digitação (ex: multipla_escolha vs Multipla Escolha)
     const tipoNorm = (tipo || "").toLowerCase();
     const isObjetiva =
       tipoNorm.includes("multipla") ||
@@ -35,7 +41,14 @@ Deno.serve(async (req) => {
 
     let prompt = "";
 
-    // --- ESTRATÉGIA 1: QUESTÕES OBJETIVAS (Múltipla Escolha / VF) ---
+    // Monta contexto extra se houver
+    let contextoExtra = "";
+    if (alternativas)
+      contextoExtra += `\nOPÇÕES DISPONÍVEIS: ${JSON.stringify(alternativas)}`;
+    if (afirmacoes)
+      contextoExtra += `\nITENS V/F: ${JSON.stringify(afirmacoes)}`;
+
+    // --- ESTRATÉGIA 1: OBJETIVAS ---
     if (isObjetiva) {
       prompt = `
           Você é um corretor de provas objetivas.
@@ -44,47 +57,48 @@ Deno.serve(async (req) => {
           - Questão: "${questao}"
           - Gabarito Oficial: "${gabarito_oficial}"
           - Resposta do Aluno: "${resposta_aluno}"
+          ${contextoExtra}
           
-          TAREFA:
-          Verifique se a opção escolhida pelo aluno corresponde ao gabarito.
-          - Se o sentido for o mesmo (ex: Aluno escolheu "B" e Gabarito é "B) Texto"), considere CORRETO.
-          - Se for Verdadeiro/Falso, verifique a lógica.
+          TAREFA CRÍTICA:
+          Verifique se a opção escolhida corresponde ao gabarito.
+          - Se o aluno respondeu com o TEXTO da opção, veja nas "OPÇÕES DISPONÍVEIS" qual letra é. Se bater com o gabarito, é 10.
+          - Se for V/F, compare a lógica.
           
           RETORNE JSON:
           {
             "nota": (10 se acertou, 0 se errou),
             "correta": (true ou false),
-            "feedback": "Breve explicação de por que está certo ou qual era a certa se errou.",
-            "pontos_melhoria": "Tópico para revisar se errou, ou 'Parabéns' se acertou."
+            "feedback": "Breve explicação.",
+            "pontos_melhoria": "Dica rápida."
           }
         `;
     }
 
-    // --- ESTRATÉGIA 2: QUESTÕES DISCURSIVAS (Rigoroso) ---
+    // --- ESTRATÉGIA 2: DISCURSIVAS ---
     else {
       prompt = `
           Você é um professor corretor RIGOROSO.
           
           CONTEXTO:
           - Pergunta: "${questao}"
-          - Gabarito/Expectativa: "${gabarito_oficial}"
+          - Gabarito: "${gabarito_oficial}"
           
           RESPOSTA DO ALUNO:
           "${resposta_aluno}"
           
           REGRAS DE NOTA ZERO (0):
-          1. Respostas como "teste", "ola", "não sei", "." = NOTA 0.
+          1. Respostas "teste", "ola", "não sei", "." = NOTA 0.
           2. Fuga total do tema = NOTA 0.
           
           TAREFA:
-          Avalie a resposta de 0 a 10.
+          Avalie de 0 a 10.
           
           RETORNE JSON:
           {
-            "nota": (Número 0 a 10),
+            "nota": (0 a 10),
             "correta": (true se nota >= 6),
-            "feedback": "Explicação do erro ou acerto.",
-            "pontos_melhoria": "O que faltou na resposta."
+            "feedback": "Explicação.",
+            "pontos_melhoria": "O que faltou."
           }
         `;
     }
@@ -97,7 +111,7 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        temperature: 0.1, // Baixa criatividade para ser preciso
+        temperature: 0.0, // Zero criatividade = Máxima precisão
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
       }),
