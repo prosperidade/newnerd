@@ -27,9 +27,32 @@ const SupabaseClient = {
   async getProfessorId() {
     if (!this.init()) return null;
     try {
+      if (globalThis.currentProfessor?.id) return globalThis.currentProfessor.id;
+
+      if (typeof fetchProfessorProfile === "function") {
+        const prof = await fetchProfessorProfile();
+        if (prof?.id) {
+          globalThis.currentProfessor = prof;
+          return prof.id;
+        }
+      }
+
       const { data } = await this.client.auth.getUser();
       const user = data?.user;
-      if (user) return user.id;
+
+      if (user) {
+        const { data: prof, error } = await this.client
+          .from("professores")
+          .select("id, email, auth_user_id")
+          .or(`auth_user_id.eq.${user.id},email.eq.${user.email}`)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (prof?.id) {
+          globalThis.currentProfessor = prof;
+          return prof.id;
+        }
+      }
 
       if (
         typeof CONFIG !== "undefined" &&

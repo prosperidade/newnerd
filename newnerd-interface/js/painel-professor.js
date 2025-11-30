@@ -30,8 +30,8 @@ async function verificarAuthProfessor() {
     const { data: professor } = await window.supabaseClient
       .from("professores")
       .select("*")
-      .eq("email", session.user.email)
-      .single();
+      .or(`auth_user_id.eq.${session.user.id},email.eq.${session.user.email}`)
+      .maybeSingle();
 
     if (professor) {
       const nome = professor.nome.split(" ")[0];

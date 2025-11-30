@@ -18,21 +18,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     await new Promise((r) => setTimeout(r, 500));
   }
 
-  const user = await verificarAuth();
-  if (!user) return;
-
   try {
-    const { data: perfil, error } = await window.supabaseClient
-      .from("alunos")
-      .select("*")
-      .eq("email", user.email)
-      .single();
-
-    if (error || !perfil) {
-      console.error("Perfil não encontrado:", error);
-      alert("Erro ao carregar perfil do aluno.");
-      return;
-    }
+    const perfil = await verificarAuth();
+    if (!perfil) return;
 
     aluno = perfil;
     const elNome = document.getElementById("alunoNome");

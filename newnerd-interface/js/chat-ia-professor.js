@@ -67,9 +67,9 @@ async function verificarAuthProfessorChat() {
 
   const { data: prof } = await supabase
     .from("professores")
-    .select("id, nome")
-    .eq("email", session.user.email)
-    .single();
+    .select("id, nome, email, auth_user_id")
+    .or(`auth_user_id.eq.${session.user.id},email.eq.${session.user.email}`)
+    .maybeSingle();
 
   if (prof) {
     return { ...session.user, nome: prof.nome, professor_id: prof.id };

@@ -186,12 +186,14 @@ const Generator = {
       this.collectEditsFromDOM(index);
 
       const q = globalThis.currentQuestions[index];
-      const {
-        data: { user },
-        error: authError,
-      } = await globalThis.supabaseClient.auth.getUser();
-      if (authError || !user) {
-        alert("Você precisa estar logado para salvar.");
+      const professorId =
+        (globalThis.currentProfessor && globalThis.currentProfessor.id) ||
+        (typeof SupabaseClient !== "undefined"
+          ? await SupabaseClient.getProfessorId()
+          : null);
+
+      if (!professorId) {
+        alert("Você precisa estar logado como professor para salvar.");
         return;
       }
 
@@ -221,7 +223,7 @@ const Generator = {
         criterios_avaliacao: q.criterios_avaliacao ?? null,
 
         // metadados que existem no schema
-        professor_id: user.id,
+        professor_id: professorId,
         tokens_usados: Number(q.tokens_usados || 0),
         custo_estimado: Number(q.custo_estimado || 0),
         created_at: q.created_at || new Date().toISOString(),

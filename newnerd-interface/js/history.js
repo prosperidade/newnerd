@@ -11,20 +11,21 @@ async function loadHistoryFromSupabase() {
 
   try {
     // CORREÇÃO AQUI: Usa globalThis.supabaseClient em vez de supabase solto
-    const {
-      data: { user },
-      error: authError,
-    } = await globalThis.supabaseClient.auth.getUser();
+    const professorId =
+      (globalThis.currentProfessor && globalThis.currentProfessor.id) ||
+      (typeof SupabaseClient !== "undefined"
+        ? await SupabaseClient.getProfessorId()
+        : null);
 
-    if (authError || !user) {
-      console.warn("Usuário não logado, histórico não será carregado.");
+    if (!professorId) {
+      console.warn("Professor não logado, histórico não será carregado.");
       return;
     }
 
     const { data, error } = await globalThis.supabaseClient
       .from("questoes_geradas")
       .select("*")
-      .eq("professor_id", user.id)
+      .eq("professor_id", professorId)
       .order("created_at", { ascending: false })
       .limit(50);
 

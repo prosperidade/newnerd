@@ -606,22 +606,9 @@ function applyPreset() {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const user = await verificarAuth();
-  if (!user) return;
-
-  const { data: perfil, error } = await window.supabaseClient
-    .from("alunos")
-    .select("*")
-    .eq("email", user.email)
-    .single();
-
-  if (error || !perfil) {
-    console.error("Aluno não encontrado:", error);
-    alert("Perfil não encontrado.");
-    return;
-  }
-  aluno = perfil;
-  el("alunoNome").textContent = aluno.nome || user.email || "Aluno";
+  aluno = await verificarAuth();
+  if (!aluno) return;
+  el("alunoNome").textContent = aluno.nome || aluno.email || "Aluno";
 
   if (aluno.preset) PRESET = aluno.preset;
   const radio = q(`input[name="preset"][value="${PRESET}"]`);
