@@ -1,113 +1,93 @@
-console.log("🔐 prof-auth.js carregado");
+console.log("🔐 prof-auth.js (professor) carregado");
 
-let supa = null;
-let isConfigReady = false;
+let professorCheckInFlight = null;
 
-// 1. A inicialização do Supabase agora depende da configuração
-function initProfessorSupabase() {
-  if (supa) return supa; // Já inicializado
+function isOnProfessorLogin() {
+  return window.location.pathname.includes("prof-login.html");
+}
 
-  if (!isConfigReady || typeof window === "undefined" || !window.CONFIG || !window.supabase) {
-    console.error("❌ Pré-requisitos para inicializar o Supabase (prof-auth) não atendidos.");
+async function fetchProfessorProfile() {
+  const client = globalThis.supabaseClient;
+  if (!client) {
+    console.error("❌ Supabase client indisponível para buscar professor.");
     return null;
   }
 
-  supa = window.supabase.createClient(
-    CONFIG.SUPABASE_URL,
-    CONFIG.SUPABASE_ANON_KEY
-  );
+  const {
+    data: { session },
+  } = await client.auth.getSession();
 
-  console.log("✅ Supabase (prof-auth) inicializado.");
-  return supa;
+  if (!session) return null;
+
+  const { data: professor, error } = await client
+    .from("professores")
+    .select("*")
+    .or(
+      `auth_user_id.eq.${session.user.id},email.eq.${session.user.email}`
+    )
+    .maybeSingle();
+
+  if (error) {
+    console.error("❌ Erro ao buscar professor:", error.message);
+    return null;
+  }
+
+  return professor || null;
 }
 
-// 2. Ouvinte que ativa a inicialização
+async function ensureProfessorAuth() {
+  if (professorCheckInFlight) return professorCheckInFlight;
+
+  professorCheckInFlight = (async () => {
+    const client = globalThis.supabaseClient;
+    if (!client) {
+      console.error("❌ Supabase não inicializado para professor.");
+      return null;
+    }
+
+    const {
+      data: { session },
+    } = await client.auth.getSession();
+
+    if (!session) {
+      if (!isOnProfessorLogin()) {
+        window.location.href = "prof-login.html";
+      }
+      return null;
+    }
+
+    const professor = await fetchProfessorProfile();
+
+    if (!professor) {
+      console.warn(
+        "Sessão não corresponde a um professor válido. Fazendo logout..."
+      );
+      await client.auth.signOut();
+      if (!isOnProfessorLogin()) window.location.href = "prof-login.html";
+      return null;
+    }
+
+    globalThis.currentProfessor = professor;
+    console.log("👨‍🏫 Professor autenticado:", professor.email || professor.id);
+    return professor;
+  })();
+
+  try {
+    return await professorCheckInFlight;
+  } finally {
+    professorCheckInFlight = null;
+  }
+}
+
 document.addEventListener("configReady", () => {
-  isConfigReady = true;
-  initProfessorSupabase(); // Inicializa assim que a config estiver pronta
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", ensureProfessorAuth, {
+      once: true,
+    });
+  } else {
+    ensureProfessorAuth();
+  }
 });
 
-// -----------------------
-// Login do professor
-// -----------------------
-async function profLogin() {
-  const client = initProfessorSupabase();
-  if (!client) {
-    alert("Erro interno: Supabase não inicializado.");
-    return;
-  }
-
-  const emailEl = document.getElementById("email");
-  const senhaEl = document.getElementById("senha");
-
-  const email = emailEl?.value?.trim();
-  const senha = senhaEl?.value?.trim();
-
-  if (!email || !senha) {
-    alert("Preencha e-mail e senha.");
-    return;
-  }
-
-  try {
-    const { data, error } = await client.auth.signInWithPassword({
-      email,
-      password: senha,
-    });
-
-    if (error) {
-      console.error("❌ Erro no login do professor:", error);
-      alert("Erro no login: " + error.message);
-      return;
-    }
-
-    console.log("✅ Professor autenticado:", data.user);
-    // depois do login, manda pra biblioteca do professor
-    window.location.href = "biblioteca-professor.html";
-  } catch (e) {
-    console.error("❌ Exceção no login:", e);
-    alert("Erro inesperado no login.");
-  }
-}
-
-// -----------------------
-// Verificar login nas páginas do professor
-// -----------------------
-async function verificarLoginProfessor() {
-  const client = initProfessorSupabase();
-  if (!client) {
-    console.error("❌ Supabase não inicializado em verificarLoginProfessor.");
-    return;
-  }
-
-  try {
-    const { data } = await client.auth.getUser();
-    const user = data?.user;
-
-    if (user) {
-      console.log("🔐 Professor logado:", user.id);
-      return;
-    }
-
-    // Modo DEV: permite login fake
-    if (CONFIG.ENV === "dev" && CONFIG.TESTE_EMAIL && CONFIG.TESTE_SENHA) {
-      console.warn("⚠️ Modo DEV: usando login fake do professor.");
-      const { error } = await client.auth.signInWithPassword({
-        email: CONFIG.TESTE_EMAIL,
-        password: CONFIG.TESTE_SENHA,
-      });
-      if (error) {
-        console.error("❌ Login fake falhou:", error);
-        alert("Erro no login de teste: " + error.message);
-      } else {
-        console.log("✅ Login fake dev bem-sucedido.");
-      }
-      return;
-    }
-
-    // Produção → manda pra tela de login do professor
-    console.log("🔒 Sem sessão de professor. Redirecionando para prof-login.");
-    window.location.href = "prof-login.html";
-  } catch (e) {
-    console.error("Erro ao verificar login do professor:", e);
-  }
-}
+window.ensureProfessorAuth = ensureProfessorAuth;
+window.fetchProfessorProfile = fetchProfessorProfile;

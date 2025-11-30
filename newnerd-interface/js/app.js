@@ -2,13 +2,29 @@
 
 let currentQuestion = null;
 let currentQuestions = [];
+let appInitialized = false;
 
-function initializeApp() {
-  console.log("🚀 New Nerd inicializado");
+async function initializeApp() {
+  if (appInitialized) return;
+  if (!window.CONFIG_READY || !window.supabaseClient) {
+    console.warn("⏳ Aguardando config/supabase para iniciar o app...");
+    return;
+  }
+
+  appInitialized = true;
+  console.log("🚀 New Nerd inicializado (professor)");
+
+  if (typeof ensureProfessorAuth === "function") {
+    const professor = await ensureProfessorAuth();
+    if (!professor) {
+      appInitialized = false; // permite nova tentativa após login
+      return;
+    }
+  }
 
   if (typeof SupabaseClient !== "undefined") {
     SupabaseClient.init();
-    console.log("✅ Supabase inicializado");
+    console.log("✅ Supabase inicializado (SupabaseClient)");
   }
 
   loadTheme();
@@ -21,7 +37,17 @@ function initializeApp() {
   setupForm();
 }
 
-document.addEventListener("configReady", initializeApp);
+document.addEventListener("configReady", () => {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initializeApp, {
+      once: true,
+    });
+  } else {
+    initializeApp();
+  }
+});
+
+if (window.CONFIG_READY) initializeApp();
 
 function setupForm() {
   const form = document.getElementById("questionForm");
@@ -57,6 +83,8 @@ window.switchMode = function (mode) {
 
 async function handleSubmit(e) {
   e.preventDefault();
+
+  console.log("🧪 handleSubmit disparado");
 
   const loading = document.getElementById("loading");
   const result = document.getElementById("result");
@@ -110,12 +138,11 @@ async function handleSubmit(e) {
       itemsToSave.length > 0
     ) {
       try {
-        const {
-          data: { user },
-        } = await window.supabaseClient.auth.getUser();
-        // ID de segurança se não estiver logado
         const profId =
-          user?.id ||
+          (globalThis.currentProfessor && globalThis.currentProfessor.id) ||
+          (typeof SupabaseClient !== "undefined"
+            ? await SupabaseClient.getProfessorId()
+            : null) ||
           CONFIG.PROFESSOR_ID ||
           "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11";
 

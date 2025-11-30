@@ -120,12 +120,15 @@ class BibliotecaAluno {
   }
 
   async ensureAuth() {
-    const { data } = await this.supa.auth.getUser();
-    if (data?.user) {
-      this.studentId = data.user.id;
+    const perfilAluno =
+      typeof verificarAuth === "function" ? await verificarAuth() : null;
+
+    if (perfilAluno?.id) {
+      this.studentId = perfilAluno.id;
+      this.aluno = perfilAluno;
       console.log("🎓 Aluno autenticado:", this.studentId);
     } else {
-      console.warn("⚠️ Aluno não logado.");
+      console.warn("⚠️ Aluno não logado ou sessão inválida.");
     }
   }
 

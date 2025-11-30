@@ -103,18 +103,27 @@ class BibliotecaProfessor {
   }
 
   async ensureAuth() {
-    const { data } = await this.supa.auth.getUser();
-    if (data?.user) {
-      this.professorId = data.user.id;
+    const professor =
+      (typeof ensureProfessorAuth === "function"
+        ? await ensureProfessorAuth()
+        : null) || null;
+
+    if (professor?.id) {
+      this.professorId = professor.id;
+      this.professor = professor;
       return;
     }
+
     if (CONFIG?.ENV === "dev" && CONFIG.TESTE_EMAIL) {
       await this.supa.auth.signInWithPassword({
         email: CONFIG.TESTE_EMAIL,
         password: CONFIG.TESTE_SENHA,
       });
-      const { data: d2 } = await this.supa.auth.getUser();
-      this.professorId = d2?.user?.id;
+      const prof =
+        (typeof ensureProfessorAuth === "function"
+          ? await ensureProfessorAuth()
+          : null) || null;
+      this.professorId = prof?.id || null;
     }
   }
 

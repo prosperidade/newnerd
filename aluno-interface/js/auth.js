@@ -15,22 +15,45 @@ async function verificarAuth() {
     error,
   } = await window.supabaseClient.auth.getSession();
 
+  const onLoginPage = window.location.pathname.includes("login.html");
+
   if (error || !session) {
-    // Se não tem sessão e não está no login, manda pro login
-    if (!window.location.pathname.includes("login.html")) {
+    if (!onLoginPage) {
       window.location.href = "login.html";
     }
     return null;
   }
 
-  // 3. Retorna os dados básicos do usuário (vincular tabelas depois)
-  // Isso garante que o sistema não trave se o perfil 'alunos' estiver incompleto
-  return {
-    id: session.user.id,
-    email: session.user.email,
-    // Tenta pegar metadados se existirem, senão usa o email como nome
-    nome: session.user.user_metadata?.nome || session.user.email,
-  };
+  // 3. Confirma se a sessão pertence a um aluno válido
+  try {
+    const { data: aluno, error: alunoError } = await window.supabaseClient
+      .from("alunos")
+      .select("*")
+      .or(
+        `auth_user_id.eq.${session.user.id},email.eq.${session.user.email}`
+      )
+      .maybeSingle();
+
+    if (alunoError) {
+      console.error("Erro ao buscar aluno:", alunoError.message);
+    }
+
+    if (!aluno) {
+      console.warn(
+        "Sessão não corresponde a um aluno. Encerrando sessão e redirecionando."
+      );
+      await window.supabaseClient.auth.signOut();
+      if (!onLoginPage) window.location.href = "login.html";
+      return null;
+    }
+
+    window.alunoAtivo = aluno;
+    return aluno;
+  } catch (lookupErr) {
+    console.error("Falha ao validar aluno:", lookupErr);
+    if (!onLoginPage) window.location.href = "login.html";
+    return null;
+  }
 }
 
 // Função simples de Logout

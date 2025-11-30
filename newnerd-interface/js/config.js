@@ -31,7 +31,8 @@ const CONFIG = {
 
   SUPABASE_URL: "https://cxizjrdlkhhegzpzzmgl.supabase.co",
   // anon key é pública por definição
-  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9....",
+  SUPABASE_ANON_KEY:
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN4aXpqcmRsa2hoZWd6cHp6bWdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0Mzk0OTIsImV4cCI6MjA3NTAxNTQ5Mn0.BUbNOWdjfweTHHZsJfTzyaq_qVxWiHM41Ug7X4ozUow",
 
   // Em DEV pode vir do config.local.js; em PROD permanece null para não expor
   OPENAI_API_KEY: ENV === "dev" ? LOCAL?.OPENAI_API_KEY ?? null : null,
@@ -139,6 +140,8 @@ function initializeConfigProfessor() {
 
   console.log("✅ CONFIG (professor) carregado:", CONFIG.WEBHOOK_URL);
   console.log("🔥 CONFIG.JS (professor) CARREGADO COMPLETAMENTE!");
+
+  globalThis.CONFIG_READY = true;
 
   if (typeof document !== "undefined") {
     document.dispatchEvent(new Event("configReady"));
