@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Teste - New Nerd</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -89,13 +90,33 @@
       <div id="generationTest" class="test-result"></div>
     </div>
 
+    <script src="js/config.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/generator.js"></script>
+
     <script>
       // Configuração
       const WEBHOOK_URL = "http://localhost:5678/webhook/newnerd-webhook";
 
       // Verificar arquivos
-      window.addEventListener("DOMContentLoaded", function () {
-        const fileCheck = document.getElementById("fileCheck");
+      const fileCheck = document.getElementById("fileCheck");
+      let checksStarted = false;
+
+      function createStatus(type, text, details) {
+        const div = document.createElement("div");
+        div.className = `status ${type}`;
+        div.textContent = text;
+
+        if (details) {
+          const paragraph = document.createElement("p");
+          paragraph.textContent = details;
+          div.appendChild(paragraph);
+        }
+
+        return div;
+      }
+
+      function addFileStatuses() {
         const files = [
           { name: "CONFIG", obj: window.CONFIG },
           { name: "Storage", obj: window.Storage },
@@ -103,15 +124,82 @@
           { name: "QUESTION_TYPES", obj: window.QUESTION_TYPES },
         ];
 
-        let html = "";
         files.forEach((file) => {
           const exists = typeof file.obj !== "undefined";
-          html += `<div class="status ${exists ? "success" : "error"}">
-                    ${exists ? "✅" : "❌"} ${file.name}
-                </div>`;
+          fileCheck.appendChild(
+            createStatus(
+              exists ? "success" : "error",
+              `${exists ? "✅" : "❌"} ${file.name}`
+            )
+          );
         });
+      }
 
-        fileCheck.innerHTML = html;
+      function testSupabaseStatus() {
+        const supabaseExists = typeof window.supabaseClient !== "undefined";
+        fileCheck.appendChild(
+          createStatus(
+            supabaseExists ? "success" : "error",
+            `${supabaseExists ? "✅" : "❌"} Supabase Client`,
+            supabaseExists
+              ? null
+              : "Cliente Supabase indisponível (verifique a configuração)."
+          )
+        );
+
+        const pingStatus = createStatus(
+          "info",
+          "ℹ️ Testando Supabase (auth.getUser)..."
+        );
+        fileCheck.appendChild(pingStatus);
+
+        if (!supabaseExists) {
+          pingStatus.className = "status error";
+          pingStatus.textContent =
+            "❌ Não foi possível testar o Supabase (cliente indisponível).";
+          return;
+        }
+
+        window.supabaseClient.auth
+          .getUser()
+          .then(({ data, error }) => {
+            if (error) throw error;
+
+            const userState = data?.user
+              ? "Usuário autenticado"
+              : "Sem sessão ativa";
+
+            pingStatus.className = "status success";
+            pingStatus.textContent = `✅ Supabase respondeu (${userState})`;
+          })
+          .catch((error) => {
+            pingStatus.className = "status error";
+            pingStatus.textContent = `❌ Supabase com erro: ${error.message}`;
+          });
+      }
+
+      function runFileChecks() {
+        if (checksStarted) return;
+        checksStarted = true;
+
+        fileCheck.innerHTML = "";
+        addFileStatuses();
+        testSupabaseStatus();
+      }
+
+      document.addEventListener("configReady", runFileChecks);
+
+      window.addEventListener("DOMContentLoaded", function () {
+        fileCheck.appendChild(
+          createStatus(
+            "info",
+            "ℹ️ Aguardando configuração (evento configReady)..."
+          )
+        );
+
+        if (window.CONFIG) {
+          runFileChecks();
+        }
       });
 
       // Testar webhook
